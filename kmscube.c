@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2012 Arvin Schnell <arvin.schnell@gmail.com>
  * Copyright (c) 2012 Rob Clark <rob@ti.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -20,6 +21,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
+
+/* Based on a egl cube test app originally written by Arvin Schnell */
 
 #include <sys/types.h>
 #include <sys/stat.h>
