@@ -49,6 +49,8 @@ static struct {
 	EGLSurface surface;
 	GLuint program;
 	GLint modelviewmatrix, modelviewprojectionmatrix, normalmatrix;
+	GLuint vbo;
+	GLuint positionsoffset, colorsoffset, normalsoffset;
 } gl;
 
 static struct {
@@ -175,6 +177,105 @@ static int init_gl(void)
 	EGLint major, minor, n;
 	GLuint vertex_shader, fragment_shader;
 	GLint ret;
+
+	static const GLfloat vVertices[] = {
+			// front
+			-1.0f, -1.0f, +1.0f, // point blue
+			+1.0f, -1.0f, +1.0f, // point magenta
+			-1.0f, +1.0f, +1.0f, // point cyan
+			+1.0f, +1.0f, +1.0f, // point white
+			// back
+			+1.0f, -1.0f, -1.0f, // point red
+			-1.0f, -1.0f, -1.0f, // point black
+			+1.0f, +1.0f, -1.0f, // point yellow
+			-1.0f, +1.0f, -1.0f, // point green
+			// right
+			+1.0f, -1.0f, +1.0f, // point magenta
+			+1.0f, -1.0f, -1.0f, // point red
+			+1.0f, +1.0f, +1.0f, // point white
+			+1.0f, +1.0f, -1.0f, // point yellow
+			// left
+			-1.0f, -1.0f, -1.0f, // point black
+			-1.0f, -1.0f, +1.0f, // point blue
+			-1.0f, +1.0f, -1.0f, // point green
+			-1.0f, +1.0f, +1.0f, // point cyan
+			// top
+			-1.0f, +1.0f, +1.0f, // point cyan
+			+1.0f, +1.0f, +1.0f, // point white
+			-1.0f, +1.0f, -1.0f, // point green
+			+1.0f, +1.0f, -1.0f, // point yellow
+			// bottom
+			-1.0f, -1.0f, -1.0f, // point black
+			+1.0f, -1.0f, -1.0f, // point red
+			-1.0f, -1.0f, +1.0f, // point blue
+			+1.0f, -1.0f, +1.0f  // point magenta
+	};
+
+	static const GLfloat vColors[] = {
+			// front
+			0.0f,  0.0f,  1.0f, // blue
+			1.0f,  0.0f,  1.0f, // magenta
+			0.0f,  1.0f,  1.0f, // cyan
+			1.0f,  1.0f,  1.0f, // white
+			// back
+			1.0f,  0.0f,  0.0f, // red
+			0.0f,  0.0f,  0.0f, // black
+			1.0f,  1.0f,  0.0f, // yellow
+			0.0f,  1.0f,  0.0f, // green
+			// right
+			1.0f,  0.0f,  1.0f, // magenta
+			1.0f,  0.0f,  0.0f, // red
+			1.0f,  1.0f,  1.0f, // white
+			1.0f,  1.0f,  0.0f, // yellow
+			// left
+			0.0f,  0.0f,  0.0f, // black
+			0.0f,  0.0f,  1.0f, // blue
+			0.0f,  1.0f,  0.0f, // green
+			0.0f,  1.0f,  1.0f, // cyan
+			// top
+			0.0f,  1.0f,  1.0f, // cyan
+			1.0f,  1.0f,  1.0f, // white
+			0.0f,  1.0f,  0.0f, // green
+			1.0f,  1.0f,  0.0f, // yellow
+			// bottom
+			0.0f,  0.0f,  0.0f, // black
+			1.0f,  0.0f,  0.0f, // red
+			0.0f,  0.0f,  1.0f, // blue
+			1.0f,  0.0f,  1.0f  // magenta
+	};
+
+	static const GLfloat vNormals[] = {
+			// front
+			+0.0f, +0.0f, +1.0f, // forward
+			+0.0f, +0.0f, +1.0f, // forward
+			+0.0f, +0.0f, +1.0f, // forward
+			+0.0f, +0.0f, +1.0f, // forward
+			// back
+			+0.0f, +0.0f, -1.0f, // backbard
+			+0.0f, +0.0f, -1.0f, // backbard
+			+0.0f, +0.0f, -1.0f, // backbard
+			+0.0f, +0.0f, -1.0f, // backbard
+			// right
+			+1.0f, +0.0f, +0.0f, // right
+			+1.0f, +0.0f, +0.0f, // right
+			+1.0f, +0.0f, +0.0f, // right
+			+1.0f, +0.0f, +0.0f, // right
+			// left
+			-1.0f, +0.0f, +0.0f, // left
+			-1.0f, +0.0f, +0.0f, // left
+			-1.0f, +0.0f, +0.0f, // left
+			-1.0f, +0.0f, +0.0f, // left
+			// top
+			+0.0f, +1.0f, +0.0f, // up
+			+0.0f, +1.0f, +0.0f, // up
+			+0.0f, +1.0f, +0.0f, // up
+			+0.0f, +1.0f, +0.0f, // up
+			// bottom
+			+0.0f, -1.0f, +0.0f, // down
+			+0.0f, -1.0f, +0.0f, // down
+			+0.0f, -1.0f, +0.0f, // down
+			+0.0f, -1.0f, +0.0f  // down
+	};
 
 	static const EGLint context_attribs[] = {
 		EGL_CONTEXT_CLIENT_VERSION, 2,
@@ -341,6 +442,23 @@ static int init_gl(void)
 	gl.normalmatrix = glGetUniformLocation(gl.program, "normalMatrix");
 
 	glViewport(0, 0, drm.mode->hdisplay, drm.mode->vdisplay);
+	glEnable(GL_CULL_FACE);
+
+	gl.positionsoffset = 0;
+	gl.colorsoffset = sizeof(vVertices);
+	gl.normalsoffset = sizeof(vVertices) + sizeof(vColors);
+	glGenBuffers(1, &gl.vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vVertices) + sizeof(vColors) + sizeof(vNormals), 0, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, gl.positionsoffset, sizeof(vVertices), &vVertices[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, gl.colorsoffset, sizeof(vColors), &vColors[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, gl.normalsoffset, sizeof(vNormals), &vNormals[0]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)gl.positionsoffset);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)gl.normalsoffset);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)gl.colorsoffset);
+	glEnableVertexAttribArray(2);
 
 	return 0;
 }
@@ -348,117 +466,10 @@ static int init_gl(void)
 static void draw(uint32_t i)
 {
 	ESMatrix modelview;
-	static const GLfloat vVertices[] = {
-			// front
-			-1.0f, -1.0f, +1.0f, // point blue
-			+1.0f, -1.0f, +1.0f, // point magenta
-			-1.0f, +1.0f, +1.0f, // point cyan
-			+1.0f, +1.0f, +1.0f, // point white
-			// back
-			+1.0f, -1.0f, -1.0f, // point red
-			-1.0f, -1.0f, -1.0f, // point black
-			+1.0f, +1.0f, -1.0f, // point yellow
-			-1.0f, +1.0f, -1.0f, // point green
-			// right
-			+1.0f, -1.0f, +1.0f, // point magenta
-			+1.0f, -1.0f, -1.0f, // point red
-			+1.0f, +1.0f, +1.0f, // point white
-			+1.0f, +1.0f, -1.0f, // point yellow
-			// left
-			-1.0f, -1.0f, -1.0f, // point black
-			-1.0f, -1.0f, +1.0f, // point blue
-			-1.0f, +1.0f, -1.0f, // point green
-			-1.0f, +1.0f, +1.0f, // point cyan
-			// top
-			-1.0f, +1.0f, +1.0f, // point cyan
-			+1.0f, +1.0f, +1.0f, // point white
-			-1.0f, +1.0f, -1.0f, // point green
-			+1.0f, +1.0f, -1.0f, // point yellow
-			// bottom
-			-1.0f, -1.0f, -1.0f, // point black
-			+1.0f, -1.0f, -1.0f, // point red
-			-1.0f, -1.0f, +1.0f, // point blue
-			+1.0f, -1.0f, +1.0f  // point magenta
-	};
-
-	static const GLfloat vColors[] = {
-			// front
-			0.0f,  0.0f,  1.0f, // blue
-			1.0f,  0.0f,  1.0f, // magenta
-			0.0f,  1.0f,  1.0f, // cyan
-			1.0f,  1.0f,  1.0f, // white
-			// back
-			1.0f,  0.0f,  0.0f, // red
-			0.0f,  0.0f,  0.0f, // black
-			1.0f,  1.0f,  0.0f, // yellow
-			0.0f,  1.0f,  0.0f, // green
-			// right
-			1.0f,  0.0f,  1.0f, // magenta
-			1.0f,  0.0f,  0.0f, // red
-			1.0f,  1.0f,  1.0f, // white
-			1.0f,  1.0f,  0.0f, // yellow
-			// left
-			0.0f,  0.0f,  0.0f, // black
-			0.0f,  0.0f,  1.0f, // blue
-			0.0f,  1.0f,  0.0f, // green
-			0.0f,  1.0f,  1.0f, // cyan
-			// top
-			0.0f,  1.0f,  1.0f, // cyan
-			1.0f,  1.0f,  1.0f, // white
-			0.0f,  1.0f,  0.0f, // green
-			1.0f,  1.0f,  0.0f, // yellow
-			// bottom
-			0.0f,  0.0f,  0.0f, // black
-			1.0f,  0.0f,  0.0f, // red
-			0.0f,  0.0f,  1.0f, // blue
-			1.0f,  0.0f,  1.0f  // magenta
-	};
-
-	static const GLfloat vNormals[] = {
-			// front
-			+0.0f, +0.0f, +1.0f, // forward
-			+0.0f, +0.0f, +1.0f, // forward
-			+0.0f, +0.0f, +1.0f, // forward
-			+0.0f, +0.0f, +1.0f, // forward
-			// back
-			+0.0f, +0.0f, -1.0f, // backbard
-			+0.0f, +0.0f, -1.0f, // backbard
-			+0.0f, +0.0f, -1.0f, // backbard
-			+0.0f, +0.0f, -1.0f, // backbard
-			// right
-			+1.0f, +0.0f, +0.0f, // right
-			+1.0f, +0.0f, +0.0f, // right
-			+1.0f, +0.0f, +0.0f, // right
-			+1.0f, +0.0f, +0.0f, // right
-			// left
-			-1.0f, +0.0f, +0.0f, // left
-			-1.0f, +0.0f, +0.0f, // left
-			-1.0f, +0.0f, +0.0f, // left
-			-1.0f, +0.0f, +0.0f, // left
-			// top
-			+0.0f, +1.0f, +0.0f, // up
-			+0.0f, +1.0f, +0.0f, // up
-			+0.0f, +1.0f, +0.0f, // up
-			+0.0f, +1.0f, +0.0f, // up
-			// bottom
-			+0.0f, -1.0f, +0.0f, // down
-			+0.0f, -1.0f, +0.0f, // down
-			+0.0f, -1.0f, +0.0f, // down
-			+0.0f, -1.0f, +0.0f  // down
-	};
 
 	/* clear the color buffer */
 	glClearColor(0.5, 0.5, 0.5, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vVertices);
-	glEnableVertexAttribArray(0);
-
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, vNormals);
-	glEnableVertexAttribArray(1);
-
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, vColors);
-	glEnableVertexAttribArray(2);
 
 	esMatrixLoadIdentity(&modelview);
 	esTranslate(&modelview, 0.0f, 0.0f, -8.0f);
@@ -490,8 +501,6 @@ static void draw(uint32_t i)
 	glUniformMatrix4fv(gl.modelviewmatrix, 1, GL_FALSE, &modelview.m[0][0]);
 	glUniformMatrix4fv(gl.modelviewprojectionmatrix, 1, GL_FALSE, &modelviewprojection.m[0][0]);
 	glUniformMatrix3fv(gl.normalmatrix, 1, GL_FALSE, normal);
-
-	glEnable(GL_CULL_FACE);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glDrawArrays(GL_TRIANGLE_STRIP, 4, 4);
