@@ -46,8 +46,10 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 {
 	int drm_fd = gbm_device_get_fd(gbm_bo_get_device(bo));
 	struct drm_fb *fb = gbm_bo_get_user_data(bo);
-	uint32_t width, height, stride, handle;
-	int ret;
+	uint32_t width, height,
+		 strides[4] = {0}, handles[4] = {0},
+		 offsets[4] = {0}, flags = 0;
+	int ret = -1;
 
 	if (fb)
 		return fb;
@@ -57,10 +59,38 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 
 	width = gbm_bo_get_width(bo);
 	height = gbm_bo_get_height(bo);
-	stride = gbm_bo_get_stride(bo);
-	handle = gbm_bo_get_handle(bo).u32;
 
-	ret = drmModeAddFB(drm_fd, width, height, 24, 32, stride, handle, &fb->fb_id);
+#ifdef HAVE_GBM_MODIFIERS
+	uint64_t modifiers[4] = {0};
+	modifiers[0] = gbm_bo_get_modifier(bo);
+	const int num_planes = gbm_bo_get_plane_count(bo);
+	for (int i = 0; i < num_planes; i++) {
+		strides[i] = gbm_bo_get_stride_for_plane(bo, i);
+		handles[i] = gbm_bo_get_handle(bo).u32;
+		offsets[i] = gbm_bo_get_offset(bo, i);
+		modifiers[i] = modifiers[0];
+	}
+
+	if (modifiers[0]) {
+		flags = DRM_MODE_FB_MODIFIERS;
+		printf("Using modifier %lx\n", modifiers[0]);
+	}
+
+	ret = drmModeAddFB2WithModifiers(drm_fd, width, height,
+			DRM_FORMAT_XRGB8888, handles, strides, offsets,
+			modifiers, &fb->fb_id, flags);
+#endif
+	if (ret) {
+		if (flags)
+			fprintf(stderr, "Modifiers failed!\n");
+
+		memcpy(handles, (uint32_t [4]){gbm_bo_get_handle(bo).u32,0,0,0}, 16);
+		memcpy(strides, (uint32_t [4]){gbm_bo_get_stride(bo),0,0,0}, 16);
+		memset(offsets, 0, 16);
+		ret = drmModeAddFB2(drm_fd, width, height, DRM_FORMAT_XRGB8888,
+				handles, strides, offsets, &fb->fb_id, 0);
+	}
+
 	if (ret) {
 		printf("failed to create fb: %s\n", strerror(errno));
 		free(fb);

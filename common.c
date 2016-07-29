@@ -54,10 +54,6 @@ const struct gbm * init_gbm(int drm_fd, int w, int h)
 	gbm.surface = gbm_surface_create(gbm.dev, w, h,
 			GBM_FORMAT_XRGB8888,
 			GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
-	if (!gbm.surface) {
-		printf("failed to create gbm surface\n");
-		return NULL;
-	}
 #else
 	uint64_t *mods;
 	int count = get_modifiers(&mods);
@@ -65,12 +61,16 @@ const struct gbm * init_gbm(int drm_fd, int w, int h)
 			GBM_FORMAT_XRGB8888, mods, count);
 #endif
 
+	if (!gbm.surface) {
+		printf("failed to create gbm surface\n");
+		return NULL;
+	}
+
 	gbm.width = w;
 	gbm.height = h;
 
 	return &gbm;
 }
-
 
 int init_egl(struct egl *egl, const struct gbm *gbm)
 {
