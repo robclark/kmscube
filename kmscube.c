@@ -58,59 +58,92 @@ static struct {
 	struct gbm_surface *surface;
 } gbm;
 
-static struct {
-	int fd;
-	drmModeModeInfo *mode;
-	uint32_t crtc_id;
-	uint32_t connector_id;
-} drm;
-
 struct drm_fb {
 	struct gbm_bo *bo;
 	uint32_t fb_id;
 };
 
-static int init_drm(void)
+struct crtc {
+	drmModeCrtc *crtc;
+	drmModeObjectProperties *props;
+	drmModePropertyRes **props_info;
+	drmModeModeInfo *mode;
+};
+
+struct encoder {
+	drmModeEncoder *encoder;
+};
+
+struct connector {
+	drmModeConnector *connector;
+	drmModeObjectProperties *props;
+	drmModePropertyRes **props_info;
+};
+
+struct fb {
+	drmModeFB *fb;
+};
+
+struct plane {
+	drmModePlane *plane;
+	drmModeObjectProperties *props;
+	drmModePropertyRes **props_info;
+};
+
+static struct {
+	int fd;
+	drmModeRes *res;
+	drmModePlaneRes *plane_res;
+
+	struct crtc *crtcs;
+	struct encoder *encoders;
+	struct connector *connectors;
+	struct fb *fbs;
+	struct plane *planes;
+	drmModeModeInfo *mode;
+	uint32_t crtc_id;
+	uint32_t connector_id;
+} drm;
+
+static drmModeEncoder *get_encoder_by_id(uint32_t id)
 {
-	static const char *modules[] = {
-			"i915", "radeon", "nouveau", "vmwgfx", "omapdrm", "exynos", "msm", "tegra", "virtio_gpu"
-	};
-	drmModeRes *resources;
+	drmModeEncoder *encoder;
+	int i;
+
+	for (i = 0; i < drm.res->count_encoders; i++) {
+		encoder = drm.encoders[i].encoder;
+		if (encoder && encoder->encoder_id == id)
+			return encoder;
+	}
+
+	return NULL;
+}
+
+static int get_crtc_index(uint32_t id)
+{
+	int i;
+
+	for (i = 0; i < drm.res->count_crtcs; ++i) {
+		drmModeCrtc *crtc = drm.crtcs[i].crtc;
+		if (crtc && crtc->crtc_id == id)
+			return i;
+	}
+
+	return -1;
+}
+
+static int prepare_connector()
+{
 	drmModeConnector *connector = NULL;
-	drmModeEncoder *encoder = NULL;
-	int i, area;
+	drmModeEncoder *encoder;
+	uint32_t possible_crtcs = ~0;
+	uint32_t active_crtcs = 0;
+	unsigned int crtc_idx, idx, i, area;
 
-	for (i = 0; i < ARRAY_SIZE(modules); i++) {
-		printf("trying to load module %s...", modules[i]);
-		drm.fd = drmOpen(modules[i], NULL);
-		if (drm.fd < 0) {
-			printf("failed.\n");
-		} else {
-			printf("success.\n");
+	for (i = 0; i < drm.res->count_connectors; i++) {
+		connector = drm.connectors[i].connector;
+		if (connector->connection == DRM_MODE_CONNECTED)
 			break;
-		}
-	}
-
-	if (drm.fd < 0) {
-		printf("could not open drm device\n");
-		return -1;
-	}
-
-	resources = drmModeGetResources(drm.fd);
-	if (!resources) {
-		printf("drmModeGetResources failed: %s\n", strerror(errno));
-		return -1;
-	}
-
-	/* find a connected connector: */
-	for (i = 0; i < resources->count_connectors; i++) {
-		connector = drmModeGetConnector(drm.fd, resources->connectors[i]);
-		if (connector->connection == DRM_MODE_CONNECTED) {
-			/* it's connected, let's use this! */
-			break;
-		}
-		drmModeFreeConnector(connector);
-		connector = NULL;
 	}
 
 	if (!connector) {
@@ -120,6 +153,33 @@ static int init_drm(void)
 		printf("no connected connector!\n");
 		return -1;
 	}
+
+	drm.connector_id = connector->connector_id;
+
+	for (i = 0; i < connector->count_encoders; ++i) {
+		encoder = get_encoder_by_id(connector->encoders[i]);
+		if (!encoder)
+			continue;
+
+		possible_crtcs |= encoder->possible_crtcs;
+
+		idx = get_crtc_index(encoder->crtc_id);
+		if (idx >= 0)
+			active_crtcs |= 1 << idx;
+	}
+
+	if (!possible_crtcs)
+		return -1;
+
+	/* Return the first possible and active CRTC if one exists, or the first
+	 * possible CRTC otherwise.
+	 */
+	if (possible_crtcs & active_crtcs)
+		crtc_idx = ffs(possible_crtcs & active_crtcs);
+	else
+		crtc_idx = ffs(possible_crtcs);
+
+	drm.crtc_id = drm.crtcs[crtc_idx -1 ].crtc->crtc_id;
 
 	/* find prefered mode or the highest resolution mode: */
 	for (i = 0, area = 0; i < connector->count_modes; i++) {
@@ -141,24 +201,163 @@ static int init_drm(void)
 		return -1;
 	}
 
-	/* find encoder: */
-	for (i = 0; i < resources->count_encoders; i++) {
-		encoder = drmModeGetEncoder(drm.fd, resources->encoders[i]);
-		if (encoder->encoder_id == connector->encoder_id)
-			break;
-		drmModeFreeEncoder(encoder);
-		encoder = NULL;
+	return 0;
+}
+
+static void free_drm()
+{
+	int i;
+
+#define free_resource(_drm, __res, type, Type)					\
+	do {									\
+		if (!(_drm).type##s)						\
+			break;							\
+		for (i = 0; i < (int)(_drm).__res->count_##type##s; ++i) {	\
+			if (!(_drm).type##s[i].type)				\
+				break;						\
+			drmModeFree##Type((_drm).type##s[i].type);		\
+		}								\
+		free((_drm).type##s);						\
+	} while (0)
+
+#define free_properties(_drm, __res, type)					\
+	do {									\
+		for (i = 0; i < (int)(_drm).__res->count_##type##s; ++i) {	\
+			drmModeFreeObjectProperties(_drm.type##s[i].props);	\
+			free(_drm.type##s[i].props_info);			\
+		}								\
+	} while (0)
+
+	if (drm.res) {
+		free_properties(drm, res, crtc);
+
+		free_resource(drm, res, crtc, Crtc);
+		free_resource(drm, res, encoder, Encoder);
+		free_resource(drm, res, connector, Connector);
+		free_resource(drm, res, fb, FB);
+
+		drmModeFreeResources(drm.res);
 	}
 
-	if (!encoder) {
-		printf("no encoder!\n");
+	if (drm.plane_res) {
+		free_properties(drm, plane_res, plane);
+
+		free_resource(drm, plane_res, plane, Plane);
+
+		drmModeFreePlaneResources(drm.plane_res);
+	}
+}
+
+static int init_drm(void)
+{
+	static const char *modules[] = {
+			"i915", "radeon", "nouveau", "vmwgfx", "omapdrm", "exynos", "msm", "tegra", "virtio_gpu"
+	};
+	int i, area, ret;
+
+	for (i = 0; i < ARRAY_SIZE(modules); i++) {
+		printf("trying to load module %s...", modules[i]);
+		drm.fd = drmOpen(modules[i], NULL);
+		if (drm.fd < 0) {
+			printf("failed.\n");
+		} else {
+			printf("success.\n");
+			break;
+		}
+	}
+
+	if (drm.fd < 0) {
+		printf("could not open drm device\n");
 		return -1;
 	}
 
-	drm.crtc_id = encoder->crtc_id;
-	drm.connector_id = connector->connector_id;
+	ret = drmSetClientCap(drm.fd, DRM_CLIENT_CAP_ATOMIC, 1);
+	if (ret) {
+		printf("no atomic modesetting support: %s\n", strerror(errno));
+		return -1;
+	}
 
-	return 0;
+	drm.res = drmModeGetResources(drm.fd);
+	if (!drm.res) {
+		printf("drmModeGetResources failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	drm.crtcs = calloc(drm.res->count_crtcs, sizeof(*drm.crtcs));
+	drm.encoders = calloc(drm.res->count_encoders, sizeof(*drm.encoders));
+	drm.connectors = calloc(drm.res->count_connectors, sizeof(*drm.connectors));
+	drm.fbs = calloc(drm.res->count_fbs, sizeof(*drm.fbs));
+
+	if (!drm.crtcs || !drm.encoders || !drm.connectors || !drm.fbs)
+		goto error;
+
+#define get_resource(_drm, __res, type, Type)					\
+	do {									\
+		for (i = 0; i < (int)(_drm).__res->count_##type##s; ++i) {	\
+			(_drm).type##s[i].type =				\
+				drmModeGet##Type((_drm).fd, (_drm).__res->type##s[i]); \
+			if (!(_drm).type##s[i].type)				\
+				fprintf(stderr, "could not get %s %i: %s\n",	\
+					#type, (_drm).__res->type##s[i],	\
+					strerror(errno));			\
+		}								\
+	} while (0)
+
+	get_resource(drm, res, crtc, Crtc);
+	get_resource(drm, res, encoder, Encoder);
+	get_resource(drm, res, connector, Connector);
+	get_resource(drm, res, fb, FB);
+
+#define get_properties(_drm, __res, type, Type)					\
+	do {									\
+		for (i = 0; i < (int)(_drm).__res->count_##type##s; ++i) {	\
+			struct type *obj = &_drm.type##s[i];			\
+			unsigned int j;						\
+			obj->props =						\
+				drmModeObjectGetProperties(_drm.fd, obj->type->type##_id, \
+							   DRM_MODE_OBJECT_##Type); \
+			if (!obj->props) {					\
+				fprintf(stderr,					\
+					"could not get %s %i properties: %s\n", \
+					#type, obj->type->type##_id,		\
+					strerror(errno));			\
+				continue;					\
+			}							\
+			obj->props_info = calloc(obj->props->count_props,	\
+						 sizeof(*obj->props_info));	\
+			if (!obj->props_info)					\
+				continue;					\
+			for (j = 0; j < obj->props->count_props; ++j)		\
+				obj->props_info[j] =				\
+					drmModeGetProperty(_drm.fd, obj->props->props[j]); \
+		}								\
+	} while (0)
+
+	get_properties(drm, res, crtc, CRTC);
+	get_properties(drm, res, connector, CONNECTOR);
+
+	for (i = 0; i < drm.res->count_crtcs; ++i)
+		drm.crtcs[i].mode = &drm.crtcs[i].crtc->mode;
+
+	drm.plane_res = drmModeGetPlaneResources(drm.fd);
+	if (!drm.plane_res) {
+		fprintf(stderr, "drmModeGetPlaneResources failed: %s\n",
+			strerror(errno));
+		return 0;
+	}
+
+	drm.planes = calloc(drm.plane_res->count_planes, sizeof(*drm.planes));
+	if (!drm.planes)
+		goto error;
+
+	get_resource(drm, plane_res, plane, Plane);
+	get_properties(drm, plane_res, plane, PLANE);
+
+	return prepare_connector();
+
+error:
+	free_drm();
+	return -1;
 }
 
 static int init_gbm(void)
@@ -584,6 +783,7 @@ int main(int argc, char *argv[])
 	FD_ZERO(&fds);
 	FD_SET(0, &fds);
 	FD_SET(drm.fd, &fds);
+
 
 	ret = init_gbm();
 	if (ret) {
