@@ -100,6 +100,7 @@ static struct {
 	struct connector *connectors;
 	struct fb *fbs;
 	struct plane *planes;
+	drmModeAtomicReq *req;
 	drmModeModeInfo *mode;
 	uint32_t crtc_id;
 	uint32_t connector_id;
@@ -755,10 +756,178 @@ static struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 	return fb;
 }
 
+static int add_connector_property(drmModeAtomicReq *req, uint32_t obj_id,
+					const char *name, uint64_t value)
+{
+	struct connector *obj = NULL;
+	unsigned int i;
+	int prop_id = 0;
+
+	for (i = 0; i < (unsigned int) drm.res->count_connectors ;
+			i++) {
+		if (obj_id == drm.res->connectors[i]) {
+			obj = &drm.connectors[i];
+			break;
+		}
+	}
+
+	if (!obj)
+		return -EINVAL;
+
+	for (i = 0 ; i < obj->props->count_props ; i++) {
+		if (strcmp(obj->props_info[i]->name, name) == 0) {
+			prop_id = obj->props_info[i]->prop_id;
+			break;
+		}
+	}
+
+	if (prop_id < 0)
+		return -EINVAL;
+
+	return drmModeAtomicAddProperty(req, obj_id, prop_id, value);
+}
+
+static int add_crtc_property(drmModeAtomicReq *req, uint32_t obj_id,
+				const char *name, uint64_t value)
+{
+	struct crtc *obj = NULL;
+	unsigned int i;
+	int prop_id = -1;
+
+	for (i = 0; i < (unsigned int) drm.res->count_crtcs ; i++) {
+		if (obj_id == drm.res->crtcs[i]) {
+			obj = &drm.crtcs[i];
+			break;
+		}
+	}
+
+	if (!obj)
+		return -EINVAL;
+
+	for (i = 0 ; i < obj->props->count_props ; i++) {
+		if (strcmp(obj->props_info[i]->name, name) == 0) {
+			prop_id = obj->props_info[i]->prop_id;
+			break;
+		}
+	}
+
+	if (prop_id < 0)
+		return -EINVAL;
+
+	return drmModeAtomicAddProperty(req, obj_id, prop_id, value);
+}
+
+static int add_plane_property(drmModeAtomicReq *req, uint32_t obj_id,
+				const char *name, uint64_t value)
+{
+	struct plane *obj = NULL;
+	unsigned int i;
+	int prop_id = -1;
+
+	for (i = 0; i < (unsigned int) drm.plane_res->count_planes ; i++) {
+		if (obj_id == drm.plane_res->planes[i]) {
+			obj = &drm.planes[i];
+			break;
+		}
+	}
+
+	if (!obj)
+		return -EINVAL;
+
+	for (i = 0 ; i < obj->props->count_props ; i++) {
+		if (strcmp(obj->props_info[i]->name, name) == 0) {
+			prop_id = obj->props_info[i]->prop_id;
+			break;
+		}
+	}
+
+	if (prop_id < 0)
+		return -EINVAL;
+
+	return drmModeAtomicAddProperty(req, obj_id, prop_id, value);
+}
+
+
+static int get_primary_plane_id()
+{
+	struct plane *obj = NULL;
+	unsigned int i, j;
+
+	for (i = 0; i < (unsigned int) drm.plane_res->count_planes ; i++) {
+		obj = &drm.planes[i];
+		for (j = 0 ; j < obj->props->count_props ; j++) {
+			if (strcmp(obj->props_info[j]->name, "type") != 0)
+				continue;
+
+			if (obj->props->prop_values[j] == DRM_PLANE_TYPE_PRIMARY)
+				return drm.plane_res->planes[i];
+		}
+	}
+
+	return -EINVAL;
+}
+
+static int drm_atomic_commit(uint32_t fb_id, uint32_t flags, void *data)
+{
+	drmModeAtomicReq *req;
+	uint32_t blob_id;
+	unsigned int i;
+	int plane_id, ret;
+
+	req = drmModeAtomicAlloc();
+
+	if (flags & DRM_MODE_ATOMIC_ALLOW_MODESET) {
+		if (add_connector_property(req, drm.connector_id, "CRTC_ID",
+						drm.crtc_id) < 0)
+				return -1;
+
+		if (drmModeCreatePropertyBlob(drm.fd, drm.mode, sizeof(*drm.mode),
+					      &blob_id) != 0)
+			return -1;
+
+		if (add_crtc_property(req, drm.crtc_id, "MODE_ID", blob_id) < 0)
+			return -1;
+
+		if (add_crtc_property(req, drm.crtc_id, "ACTIVE", 1) < 0)
+			return -1;
+	}
+
+	plane_id = get_primary_plane_id();
+	if (plane_id < 0)
+		return -1;
+
+	add_plane_property(req, plane_id, "FB_ID", fb_id);
+	add_plane_property(req, plane_id, "CRTC_ID", drm.crtc_id);
+	add_plane_property(req, plane_id, "SRC_X", 0);
+	add_plane_property(req, plane_id, "SRC_Y", 0);
+	add_plane_property(req, plane_id, "SRC_W", drm.mode->hdisplay << 16);
+	add_plane_property(req, plane_id, "SRC_H", drm.mode->vdisplay << 16);
+	add_plane_property(req, plane_id, "CRTC_X", 0);
+	add_plane_property(req, plane_id, "CRTC_Y", 0);
+	add_plane_property(req, plane_id, "CRTC_W", drm.mode->hdisplay);
+	add_plane_property(req, plane_id, "CRTC_H", drm.mode->vdisplay);
+
+	ret = drmModeAtomicCommit(drm.fd, req, flags, data);
+	if (ret)
+		goto out;
+
+	drm.req = req;
+
+	return 0;
+
+out:
+	drmModeAtomicFree(req);
+
+	return ret;
+}
+
 static void page_flip_handler(int fd, unsigned int frame,
 		  unsigned int sec, unsigned int usec, void *data)
 {
 	int *waiting_for_flip = data;
+
+	drmModeAtomicFree(drm.req);
+	drm.req = NULL;
 	*waiting_for_flip = 0;
 }
 
@@ -805,10 +974,9 @@ int main(int argc, char *argv[])
 	fb = drm_fb_get_from_bo(bo);
 
 	/* set mode: */
-	ret = drmModeSetCrtc(drm.fd, drm.crtc_id, fb->fb_id, 0, 0,
-			&drm.connector_id, 1, drm.mode);
+	ret = drm_atomic_commit(fb->fb_id, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL);
 	if (ret) {
-		printf("failed to set mode: %s\n", strerror(errno));
+		printf("failed to commit modeset: %s\n", strerror(errno));
 		return ret;
 	}
 
@@ -826,11 +994,11 @@ int main(int argc, char *argv[])
 		 * Here you could also update drm plane layers if you want
 		 * hw composition
 		 */
-
-		ret = drmModePageFlip(drm.fd, drm.crtc_id, fb->fb_id,
-				DRM_MODE_PAGE_FLIP_EVENT, &waiting_for_flip);
+		ret = drm_atomic_commit(fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT |
+						DRM_MODE_ATOMIC_NONBLOCK,
+						&waiting_for_flip);
 		if (ret) {
-			printf("failed to queue page flip: %s\n", strerror(errno));
+			printf("failed to commit: %s\n", strerror(errno));
 			return -1;
 		}
 
