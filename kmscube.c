@@ -855,6 +855,8 @@ static int get_primary_plane_id()
 
 	for (i = 0; i < (unsigned int) drm.plane_res->count_planes ; i++) {
 		obj = &drm.planes[i];
+		if (!(obj->plane->possible_crtcs & (1 << get_crtc_index(drm.crtc_id))))
+			continue;
 		for (j = 0 ; j < obj->props->count_props ; j++) {
 			if (strcmp(obj->props_info[j]->name, "type") != 0)
 				continue;
