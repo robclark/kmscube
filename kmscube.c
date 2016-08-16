@@ -24,6 +24,7 @@
 
 /* Based on a egl cube test app originally written by Arvin Schnell */
 
+#include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -31,12 +32,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 #include <gbm.h>
 
 #include "esUtil.h"
+#include <EGL/eglext.h>
 
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
@@ -51,6 +54,11 @@ static struct {
 	GLint modelviewmatrix, modelviewprojectionmatrix, normalmatrix;
 	GLuint vbo;
 	GLuint positionsoffset, colorsoffset, normalsoffset;
+
+	PFNEGLCREATESYNCKHRPROC eglCreateSyncKHR;
+	PFNEGLDESTROYSYNCKHRPROC eglDestroySyncKHR;
+	PFNEGLWAITSYNCKHRPROC eglWaitSyncKHR;
+	PFNEGLDUPNATIVEFENCEFDANDROIDPROC eglDupNativeFenceFDANDROID;
 } gl;
 
 static struct {
@@ -104,6 +112,9 @@ static struct {
 	drmModeModeInfo *mode;
 	uint32_t crtc_id;
 	uint32_t connector_id;
+
+	int kms_in_fence_fd;
+	struct drm_out_fences kms_out_fence;
 } drm;
 
 static drmModeEncoder *get_encoder_by_id(uint32_t id)
@@ -247,6 +258,9 @@ static void free_drm()
 
 		drmModeFreePlaneResources(drm.plane_res);
 	}
+
+	if (drm.kms_in_fence_fd)
+		close(drm.kms_in_fence_fd);
 }
 
 static int init_drm(void)
@@ -271,6 +285,9 @@ static int init_drm(void)
 		printf("could not open drm device\n");
 		return -1;
 	}
+
+	drm.kms_in_fence_fd = -1;
+	drm.kms_out_fence.fd = -1;
 
 	ret = drmSetClientCap(drm.fd, DRM_CLIENT_CAP_ATOMIC, 1);
 	if (ret) {
@@ -537,6 +554,16 @@ static int init_gl(void)
 		printf("failed to initialize\n");
 		return -1;
 	}
+
+#define get_proc(name) do { \
+		gl.name = (void *)eglGetProcAddress(#name); \
+		assert(gl.name); \
+	} while (0)
+
+	get_proc(eglCreateSyncKHR);
+	get_proc(eglDestroySyncKHR);
+	get_proc(eglWaitSyncKHR);
+	get_proc(eglDupNativeFenceFDANDROID);
 
 	printf("Using display %p with EGL version %d.%d\n",
 			gl.display, major, minor);
@@ -869,7 +896,7 @@ static int get_primary_plane_id()
 	return -EINVAL;
 }
 
-static int drm_atomic_commit(uint32_t fb_id, uint32_t flags, void *data)
+static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 {
 	drmModeAtomicReq *req;
 	uint32_t blob_id;
@@ -909,11 +936,22 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags, void *data)
 	add_plane_property(req, plane_id, "CRTC_W", drm.mode->hdisplay);
 	add_plane_property(req, plane_id, "CRTC_H", drm.mode->vdisplay);
 
-	ret = drmModeAtomicCommit(drm.fd, req, flags, data);
+	if (drm.kms_in_fence_fd != -1) {
+		drm.kms_out_fence.crtc_id = drm.crtc_id;
+		drmModeAtomicAddOutFences(req, &drm.kms_out_fence, 1);
+		add_plane_property(req, plane_id, "FENCE_FD", drm.kms_in_fence_fd);
+	}
+
+	ret = drmModeAtomicCommit(drm.fd, req, flags, NULL);
 	if (ret)
 		goto out;
 
 	drm.req = req;
+
+	if (drm.kms_in_fence_fd != -1) {
+		close(drm.kms_in_fence_fd);
+		drm.kms_in_fence_fd = -1;
+	}
 
 	return 0;
 
@@ -923,23 +961,20 @@ out:
 	return ret;
 }
 
-static void page_flip_handler(int fd, unsigned int frame,
-		  unsigned int sec, unsigned int usec, void *data)
+static EGLSyncKHR create_fence(int fd)
 {
-	int *waiting_for_flip = data;
-
-	drmModeAtomicFree(drm.req);
-	drm.req = NULL;
-	*waiting_for_flip = 0;
+	EGLint attrib_list[] = {
+		EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fd,
+		EGL_NONE,
+	};
+	EGLSyncKHR fence = gl.eglCreateSyncKHR(gl.display,
+			EGL_SYNC_NATIVE_FENCE_ANDROID, attrib_list);
+	assert(fence);
+	return fence;
 }
 
 int main(int argc, char *argv[])
 {
-	fd_set fds;
-	drmEventContext evctx = {
-			.version = DRM_EVENT_CONTEXT_VERSION,
-			.page_flip_handler = page_flip_handler,
-	};
 	struct gbm_bo *bo;
 	struct drm_fb *fb;
 	uint32_t i = 0;
@@ -950,11 +985,6 @@ int main(int argc, char *argv[])
 		printf("failed to initialize DRM\n");
 		return ret;
 	}
-
-	FD_ZERO(&fds);
-	FD_SET(0, &fds);
-	FD_SET(drm.fd, &fds);
-
 
 	ret = init_gbm();
 	if (ret) {
@@ -976,7 +1006,7 @@ int main(int argc, char *argv[])
 	fb = drm_fb_get_from_bo(bo);
 
 	/* set mode: */
-	ret = drm_atomic_commit(fb->fb_id, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL);
+	ret = drm_atomic_commit(fb->fb_id, DRM_MODE_ATOMIC_ALLOW_MODESET);
 	if (ret) {
 		printf("failed to commit modeset: %s\n", strerror(errno));
 		return ret;
@@ -984,11 +1014,44 @@ int main(int argc, char *argv[])
 
 	while (1) {
 		struct gbm_bo *next_bo;
-		int waiting_for_flip = 1;
+		EGLSyncKHR gpu_fence = NULL;   /* out-fence from gpu, in-fence to kms */
+		EGLSyncKHR kms_fence = NULL;   /* in-fence to gpu, out-fence from kms */
+		int gpu_fence_fd, kms_fence_fd;  /* just for debugging */
+
+		kms_fence_fd = drm.kms_out_fence.fd;
+
+		if (drm.kms_out_fence.fd != -1) {
+			kms_fence = create_fence(drm.kms_out_fence.fd);
+
+			/* driver now has ownership of the fence fd: */
+			drm.kms_out_fence.fd = -1;
+
+			/* wait "on the gpu" (ie. this won't necessarily block, but
+			 * will block the rendering until fence is signaled), until
+			 * the previous pageflip completes so we don't render into
+			 * the buffer that is still on screen.
+			 */
+			gl.eglWaitSyncKHR(gl.display, kms_fence, 0);
+			gl.eglDestroySyncKHR(gl.display, kms_fence);
+		}
 
 		draw(i++);
 
+		/* insert fence to be singled in cmdstream.. this fence will be
+		 * signaled when gpu rendering done
+		 */
+		gpu_fence = create_fence(EGL_NO_NATIVE_FENCE_FD_ANDROID);
+
 		eglSwapBuffers(gl.display, gl.surface);
+
+		/* after swapbuffers, gpu_fence should be flushed, so safe
+		 * to get fd:
+		 */
+		drm.kms_in_fence_fd = gl.eglDupNativeFenceFDANDROID(gl.display, gpu_fence);
+		gpu_fence_fd = drm.kms_in_fence_fd;
+		gl.eglDestroySyncKHR(gl.display, gpu_fence);
+		assert(drm.kms_in_fence_fd != -1);
+
 		next_bo = gbm_surface_lock_front_buffer(gbm.surface);
 		fb = drm_fb_get_from_bo(next_bo);
 
@@ -996,27 +1059,12 @@ int main(int argc, char *argv[])
 		 * Here you could also update drm plane layers if you want
 		 * hw composition
 		 */
-		ret = drm_atomic_commit(fb->fb_id, DRM_MODE_PAGE_FLIP_EVENT |
-						DRM_MODE_ATOMIC_NONBLOCK,
-						&waiting_for_flip);
+		ret = drm_atomic_commit(fb->fb_id, DRM_MODE_ATOMIC_NONBLOCK);
+		printf("commit: gpu_fence_fd=%d, kms_fence_fd=%d, ret=%d\n",
+				gpu_fence_fd, kms_fence_fd, ret);
 		if (ret) {
 			printf("failed to commit: %s\n", strerror(errno));
 			return -1;
-		}
-
-		while (waiting_for_flip) {
-			ret = select(drm.fd + 1, &fds, NULL, NULL, NULL);
-			if (ret < 0) {
-				printf("select err: %s\n", strerror(errno));
-				return ret;
-			} else if (ret == 0) {
-				printf("select timeout!\n");
-				return -1;
-			} else if (FD_ISSET(0, &fds)) {
-				printf("user interrupted!\n");
-				break;
-			}
-			drmHandleEvent(drm.fd, &evctx);
 		}
 
 		/* release last buffer to render on again: */
