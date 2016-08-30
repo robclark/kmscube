@@ -256,10 +256,10 @@ static int init_gl(void)
 			+0.0f, +0.0f, +1.0f, // forward
 			+0.0f, +0.0f, +1.0f, // forward
 			// back
-			+0.0f, +0.0f, -1.0f, // backbard
-			+0.0f, +0.0f, -1.0f, // backbard
-			+0.0f, +0.0f, -1.0f, // backbard
-			+0.0f, +0.0f, -1.0f, // backbard
+			+0.0f, +0.0f, -1.0f, // backward
+			+0.0f, +0.0f, -1.0f, // backward
+			+0.0f, +0.0f, -1.0f, // backward
+			+0.0f, +0.0f, -1.0f, // backward
 			// right
 			+1.0f, +0.0f, +0.0f, // right
 			+1.0f, +0.0f, +0.0f, // right
