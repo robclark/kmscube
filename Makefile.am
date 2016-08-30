@@ -40,5 +40,6 @@ kmscube_CFLAGS = \
 	$(GLES2_CFLAGS)
 
 kmscube_SOURCES = \
+	frame-512x512-RGBA.c \
 	kmscube.c \
 	esTransform.c
