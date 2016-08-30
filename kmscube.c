@@ -36,6 +36,12 @@
 #include <xf86drmMode.h>
 #include <gbm.h>
 
+#define GL_GLEXT_PROTOTYPES 1
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+
 #include "esUtil.h"
 
 
@@ -185,35 +191,35 @@ static int init_gl(void)
 
 	static const GLfloat vVertices[] = {
 			// front
-			-1.0f, -1.0f, +1.0f, // point blue
-			+1.0f, -1.0f, +1.0f, // point magenta
-			-1.0f, +1.0f, +1.0f, // point cyan
-			+1.0f, +1.0f, +1.0f, // point white
+			-1.0f, -1.0f, +1.0f,
+			+1.0f, -1.0f, +1.0f,
+			-1.0f, +1.0f, +1.0f,
+			+1.0f, +1.0f, +1.0f,
 			// back
-			+1.0f, -1.0f, -1.0f, // point red
-			-1.0f, -1.0f, -1.0f, // point black
-			+1.0f, +1.0f, -1.0f, // point yellow
-			-1.0f, +1.0f, -1.0f, // point green
+			+1.0f, -1.0f, -1.0f,
+			-1.0f, -1.0f, -1.0f,
+			+1.0f, +1.0f, -1.0f,
+			-1.0f, +1.0f, -1.0f,
 			// right
-			+1.0f, -1.0f, +1.0f, // point magenta
-			+1.0f, -1.0f, -1.0f, // point red
-			+1.0f, +1.0f, +1.0f, // point white
-			+1.0f, +1.0f, -1.0f, // point yellow
+			+1.0f, -1.0f, +1.0f,
+			+1.0f, -1.0f, -1.0f,
+			+1.0f, +1.0f, +1.0f,
+			+1.0f, +1.0f, -1.0f,
 			// left
-			-1.0f, -1.0f, -1.0f, // point black
-			-1.0f, -1.0f, +1.0f, // point blue
-			-1.0f, +1.0f, -1.0f, // point green
-			-1.0f, +1.0f, +1.0f, // point cyan
+			-1.0f, -1.0f, -1.0f,
+			-1.0f, -1.0f, +1.0f,
+			-1.0f, +1.0f, -1.0f,
+			-1.0f, +1.0f, +1.0f,
 			// top
-			-1.0f, +1.0f, +1.0f, // point cyan
-			+1.0f, +1.0f, +1.0f, // point white
-			-1.0f, +1.0f, -1.0f, // point green
-			+1.0f, +1.0f, -1.0f, // point yellow
+			-1.0f, +1.0f, +1.0f,
+			+1.0f, +1.0f, +1.0f,
+			-1.0f, +1.0f, -1.0f,
+			+1.0f, +1.0f, -1.0f,
 			// bottom
-			-1.0f, -1.0f, -1.0f, // point black
-			+1.0f, -1.0f, -1.0f, // point red
-			-1.0f, -1.0f, +1.0f, // point blue
-			+1.0f, -1.0f, +1.0f  // point magenta
+			-1.0f, -1.0f, -1.0f,
+			+1.0f, -1.0f, -1.0f,
+			-1.0f, -1.0f, +1.0f,
+			+1.0f, -1.0f, +1.0f,
 	};
 
 	static const GLfloat vColors[] = {
@@ -458,11 +464,11 @@ static int init_gl(void)
 	glBufferSubData(GL_ARRAY_BUFFER, gl.positionsoffset, sizeof(vVertices), &vVertices[0]);
 	glBufferSubData(GL_ARRAY_BUFFER, gl.colorsoffset, sizeof(vColors), &vColors[0]);
 	glBufferSubData(GL_ARRAY_BUFFER, gl.normalsoffset, sizeof(vNormals), &vNormals[0]);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)gl.positionsoffset);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.positionsoffset);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)gl.normalsoffset);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.normalsoffset);
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)gl.colorsoffset);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.colorsoffset);
 	glEnableVertexAttribArray(2);
 
 	return 0;
