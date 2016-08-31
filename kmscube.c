@@ -377,6 +377,7 @@ static int init_gl(void)
 	/* connect the context to the surface */
 	eglMakeCurrent(gl.display, gl.surface, gl.surface, gl.context);
 
+	printf("GL Extensions: \"%s\"\n", glGetString(GL_EXTENSIONS));
 
 	vertex_shader = glCreateShader(GL_VERTEX_SHADER);
 
