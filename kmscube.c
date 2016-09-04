@@ -76,6 +76,47 @@ struct drm_fb {
 	uint32_t fb_id;
 };
 
+static uint32_t find_crtc_for_encoder(const drmModeRes *resources,
+				      const drmModeEncoder *encoder) {
+	int i;
+
+	for (i = 0; i < resources->count_crtcs; i++) {
+		/* possible_crtcs is a bitmask as described here:
+		 * https://dvdhrm.wordpress.com/2012/09/13/linux-drm-mode-setting-api
+		 */
+		const uint32_t crtc_mask = 1 << i;
+		const uint32_t crtc_id = resources->crtcs[i];
+		if (encoder->possible_crtcs & crtc_mask) {
+			return crtc_id;
+		}
+	}
+
+	/* no match found */
+	return -1;
+}
+
+static uint32_t find_crtc_for_connector(const drmModeRes *resources,
+					const drmModeConnector *connector) {
+	int i;
+
+	for (i = 0; i < connector->count_encoders; i++) {
+		const uint32_t encoder_id = connector->encoders[i];
+		drmModeEncoder *encoder = drmModeGetEncoder(drm.fd, encoder_id);
+
+		if (encoder) {
+			const uint32_t crtc_id = find_crtc_for_encoder(resources, encoder);
+
+			drmModeFreeEncoder(encoder);
+			if (crtc_id != 0) {
+				return crtc_id;
+			}
+		}
+	}
+
+	/* no match found */
+	return -1;
+}
+
 static int init_drm(void)
 {
 	static const char *modules[] = {
@@ -156,12 +197,18 @@ static int init_drm(void)
 		encoder = NULL;
 	}
 
-	if (!encoder) {
-		printf("no encoder!\n");
-		return -1;
+	if (encoder) {
+		drm.crtc_id = encoder->crtc_id;
+	} else {
+		uint32_t crtc_id = find_crtc_for_connector(resources, connector);
+		if (crtc_id == 0) {
+			printf("no crtc found!\n");
+			return -1;
+		}
+
+		drm.crtc_id = crtc_id;
 	}
 
-	drm.crtc_id = encoder->crtc_id;
 	drm.connector_id = connector->connector_id;
 
 	return 0;
