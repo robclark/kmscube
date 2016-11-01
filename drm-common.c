@@ -152,7 +152,7 @@ int init_drm(struct drm *drm, const char *device)
 		return -1;
 	}
 
-	/* find prefered mode or the highest resolution mode: */
+	/* find preferred mode or the highest resolution mode: */
 	for (i = 0, area = 0; i < connector->count_modes; i++) {
 		drmModeModeInfo *current_mode = &connector->modes[i];
 
