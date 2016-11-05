@@ -31,10 +31,26 @@
 
 static struct gbm gbm;
 
+#ifndef DRM_FORMAT_MOD_LINEAR
+#define DRM_FORMAT_MOD_LINEAR 0
+#endif
+
+#ifdef HAVE_GBM_MODIFIERS
+static int
+get_modifiers(uint64_t **mods)
+{
+	/* Assumed LINEAR is supported everywhere */
+	static uint64_t modifiers[] = {DRM_FORMAT_MOD_LINEAR};
+	*mods = modifiers;
+	return 1;
+}
+#endif
+
 const struct gbm * init_gbm(int drm_fd, int w, int h)
 {
 	gbm.dev = gbm_create_device(drm_fd);
 
+#ifndef HAVE_GBM_MODIFIERS
 	gbm.surface = gbm_surface_create(gbm.dev, w, h,
 			GBM_FORMAT_XRGB8888,
 			GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
@@ -42,6 +58,12 @@ const struct gbm * init_gbm(int drm_fd, int w, int h)
 		printf("failed to create gbm surface\n");
 		return NULL;
 	}
+#else
+	uint64_t *mods;
+	int count = get_modifiers(&mods);
+	gbm.surface = gbm_surface_create_with_modifiers(gbm.dev, w, h,
+			GBM_FORMAT_XRGB8888, mods, count);
+#endif
 
 	gbm.width = w;
 	gbm.height = h;
