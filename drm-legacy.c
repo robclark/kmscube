@@ -60,6 +60,10 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	eglSwapBuffers(egl->display, egl->surface);
 	bo = gbm_surface_lock_front_buffer(gbm->surface);
 	fb = drm_fb_get_from_bo(bo);
+	if (!fb) {
+		fprintf(stderr, "Failed to get a new framebuffer BO\n");
+		return -1;
+	}
 
 	/* set mode: */
 	ret = drmModeSetCrtc(drm.fd, drm.crtc_id, fb->fb_id, 0, 0,
@@ -78,6 +82,10 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 		eglSwapBuffers(egl->display, egl->surface);
 		next_bo = gbm_surface_lock_front_buffer(gbm->surface);
 		fb = drm_fb_get_from_bo(next_bo);
+		if (!fb) {
+			fprintf(stderr, "Failed to get a new framebuffer BO\n");
+			return -1;
+		}
 
 		/*
 		 * Here you could also update drm plane layers if you want
