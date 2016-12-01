@@ -31,10 +31,6 @@
 
 static struct gbm gbm;
 
-#ifndef DRM_FORMAT_MOD_LINEAR
-#define DRM_FORMAT_MOD_LINEAR 0
-#endif
-
 #ifdef HAVE_GBM_MODIFIERS
 static int
 get_modifiers(uint64_t **mods)
@@ -46,17 +42,27 @@ get_modifiers(uint64_t **mods)
 }
 #endif
 
-const struct gbm * init_gbm(int drm_fd, int w, int h)
+const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 {
 	gbm.dev = gbm_create_device(drm_fd);
 
 #ifndef HAVE_GBM_MODIFIERS
+	if (modifier != DRM_FORMAT_MOD_INVALID) {
+		fprintf(stderr, "Modifiers requested but support isn't available\n");
+		return NULL;
+	}
 	gbm.surface = gbm_surface_create(gbm.dev, w, h,
 			GBM_FORMAT_XRGB8888,
 			GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
 #else
 	uint64_t *mods;
-	int count = get_modifiers(&mods);
+	int count;
+	if (modifier != DRM_FORMAT_MOD_INVALID) {
+		count = 1;
+		mods = &modifier;
+	} else {
+		count = get_modifiers(&mods);
+	}
 	gbm.surface = gbm_surface_create_with_modifiers(gbm.dev, w, h,
 			GBM_FORMAT_XRGB8888, mods, count);
 #endif

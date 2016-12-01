@@ -26,6 +26,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <getopt.h>
 
 #include "common.h"
@@ -41,19 +42,20 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:M:V:";
+static const char *shortopts = "AD:M:m:V:";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'A'},
 	{"device", required_argument, 0, 'D'},
 	{"mode",   required_argument, 0, 'M'},
+	{"modifier", required_argument, 0, 'm'},
 	{"video",  required_argument, 0, 'V'},
 	{0, 0, 0, 0}
 };
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-ADMV]\n"
+	printf("Usage: %s [-ADMmV]\n"
 			"\n"
 			"options:\n"
 			"    -A, --atomic             use atomic modesetting and fencing\n"
@@ -63,6 +65,7 @@ static void usage(const char *name)
 			"        rgba      -  rgba textured cube\n"
 			"        nv12-2img -  yuv textured (color conversion in shader)\n"
 			"        nv12-1img -  yuv textured (single nv12 texture)\n"
+			"    -m, --modifier=MODIFIER  hardcode the selected modifier\n"
 			"    -V, --video=FILE         video textured cube\n",
 			name);
 }
@@ -72,6 +75,7 @@ int main(int argc, char *argv[])
 	const char *device = "/dev/dri/card0";
 	const char *video = NULL;
 	enum mode mode = SMOOTH;
+	uint64_t modifier = DRM_FORMAT_MOD_INVALID;
 	int atomic = 0;
 	int opt;
 
@@ -102,6 +106,9 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 			break;
+		case 'm':
+			modifier = strtoull(optarg, NULL, 0);
+			break;
 		case 'V':
 			mode = VIDEO;
 			video = optarg;
@@ -121,7 +128,8 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	gbm = init_gbm(drm->fd, drm->mode->hdisplay, drm->mode->vdisplay);
+	gbm = init_gbm(drm->fd, drm->mode->hdisplay, drm->mode->vdisplay,
+			modifier);
 	if (!gbm) {
 		printf("failed to initialize GBM\n");
 		return -1;

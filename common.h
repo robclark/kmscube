@@ -32,6 +32,14 @@
 #include <gbm.h>
 #include <drm_fourcc.h>
 
+#ifndef DRM_FORMAT_MOD_LINEAR
+#define DRM_FORMAT_MOD_LINEAR 0
+#endif
+
+#ifndef DRM_FORMAT_MOD_INVALID
+#define DRM_FORMAT_MOD_INVALID ((((__u64)0) << 56) | ((1ULL << 56) - 1))
+#endif
+
 #ifndef EGL_KHR_platform_gbm
 #define EGL_KHR_platform_gbm 1
 #define EGL_PLATFORM_GBM_KHR              0x31D7
@@ -55,7 +63,7 @@ struct gbm {
 	int width, height;
 };
 
-const struct gbm * init_gbm(int drm_fd, int w, int h);
+const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier);
 
 
 struct egl {
