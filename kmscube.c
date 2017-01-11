@@ -42,6 +42,8 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include <assert.h>
+
 #include "esUtil.h"
 
 
@@ -120,6 +122,7 @@ static uint32_t find_crtc_for_connector(const drmModeRes *resources,
 static int init_drm(void)
 {
 	static const char *modules[] = {
+		"rockchip",
 		"exynos",
 		"i915",
 		"msm",
@@ -393,7 +396,12 @@ static int init_gl(void)
 			"    gl_FragColor = vVaryingColor;  \n"
 			"}                                  \n";
 
-	gl.display = eglGetDisplay(gbm.dev);
+	PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display = NULL;
+	get_platform_display =
+		(void *) eglGetProcAddress("eglGetPlatformDisplayEXT");
+	assert(get_platform_display != NULL);
+
+	gl.display = get_platform_display(EGL_PLATFORM_GBM_KHR, gbm.dev, NULL);
 
 	if (!eglInitialize(gl.display, &major, &minor)) {
 		printf("failed to initialize\n");
