@@ -121,34 +121,12 @@ static uint32_t find_crtc_for_connector(const drmModeRes *resources,
 
 static int init_drm(void)
 {
-	static const char *modules[] = {
-		"rockchip",
-		"exynos",
-		"i915",
-		"msm",
-		"nouveau",
-		"omapdrm",
-		"radeon",
-		"tegra",
-		"vc4",
-		"virtio_gpu",
-		"vmwgfx",
-	};
 	drmModeRes *resources;
 	drmModeConnector *connector = NULL;
 	drmModeEncoder *encoder = NULL;
 	int i, area;
 
-	for (i = 0; i < ARRAY_SIZE(modules); i++) {
-		printf("trying to load module %s...", modules[i]);
-		drm.fd = drmOpen(modules[i], NULL);
-		if (drm.fd < 0) {
-			printf("failed.\n");
-		} else {
-			printf("success.\n");
-			break;
-		}
-	}
+	drm.fd = open("/dev/dri/card0", O_RDWR);
 
 	if (drm.fd < 0) {
 		printf("could not open drm device\n");
