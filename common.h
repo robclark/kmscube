@@ -31,6 +31,7 @@
 #include <EGL/eglext.h>
 
 #include <gbm.h>
+#include <drm/drm_fourcc.h>
 
 #define GL_GLEXT_PROTOTYPES 1
 #include <GLES2/gl2.h>
@@ -54,6 +55,9 @@ struct egl {
 	EGLSurface surface;
 
 	PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
+	PFNEGLCREATEIMAGEKHRPROC eglCreateImageKHR;
+	PFNEGLDESTROYIMAGEKHRPROC eglDestroyImageKHR;
+	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC glEGLImageTargetTexture2DOES;
 
 	void (*draw)(unsigned i);
 };
@@ -62,7 +66,14 @@ int init_egl(struct egl *egl, const struct gbm *gbm);
 int create_program(const char *vs_src, const char *fs_src);
 int link_program(unsigned program);
 
+enum mode {
+	SMOOTH,        /* smooth-shaded */
+	RGBA,          /* single-plane RGBA */
+	NV12_2IMG,     /* NV12, handled as two textures and converted to RGB in shader */
+	NV12_1IMG,     /* NV12, imported as planar YUV eglimg */
+};
 
 const struct egl * init_cube_smooth(const struct gbm *gbm);
+const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode);
 
 #endif /* _COMMON_H */

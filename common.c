@@ -71,6 +71,9 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 	} while (0)
 
 	get_proc(eglGetPlatformDisplayEXT);
+	get_proc(eglCreateImageKHR);
+	get_proc(eglDestroyImageKHR);
+	get_proc(glEGLImageTargetTexture2DOES);
 
 	if (egl->eglGetPlatformDisplayEXT) {
 		egl->display = egl->eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR,

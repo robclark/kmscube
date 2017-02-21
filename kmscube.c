@@ -232,10 +232,11 @@ static void page_flip_handler(int fd, unsigned int frame,
 	*waiting_for_flip = 0;
 }
 
-static const char *shortopts = "D:";
+static const char *shortopts = "D:M:";
 
 static const struct option longopts[] = {
 	{"device", required_argument, 0, 'D'},
+	{"mode",   required_argument, 0, 'M'},
 	{0, 0, 0, 0}
 };
 
@@ -244,7 +245,12 @@ static void usage(const char *name)
 	printf("Usage: %s [-D]\n"
 			"\n"
 			"options:\n"
-			"    -D, --device=DEVICE      use the given device\n",
+			"    -D, --device=DEVICE      use the given device\n"
+			"    -M, --mode=MODE          specify mode, one of:\n"
+			"        smooth    -  smooth shaded cube (default)\n"
+			"        rgba      -  rgba textured cube\n"
+			"        nv12-2img -  yuv textured (color conversion in shader)\n"
+			"        nv12-1img -  yuv textured (single nv12 texture)\n",
 			name);
 }
 
@@ -259,6 +265,7 @@ int main(int argc, char *argv[])
 	struct drm_fb *fb;
 	uint32_t i = 0;
 	const char *device = "/dev/dri/card0";
+	enum mode mode = SMOOTH;
 	int opt, ret;
 
 	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
@@ -266,8 +273,22 @@ int main(int argc, char *argv[])
 		case 'D':
 			device = optarg;
 			break;
+		case 'M':
+			if (strcmp(optarg, "smooth") == 0) {
+				mode = SMOOTH;
+			} else if (strcmp(optarg, "rgba") == 0) {
+				mode = RGBA;
+			} else if (strcmp(optarg, "nv12-2img") == 0) {
+				mode = NV12_2IMG;
+			} else if (strcmp(optarg, "nv12-1img") == 0) {
+				mode = NV12_1IMG;
+			} else {
+				printf("invalid mode: %s\n", optarg);
+				usage(argv[0]);
+				return -1;
+			}
+			break;
 		default:
-			printf("error: unknown option: %c\n", opt);
 			usage(argv[0]);
 			return -1;
 		}
@@ -289,7 +310,12 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	egl = init_cube_smooth(gbm);
+	if (mode == SMOOTH) {
+		egl = init_cube_smooth(gbm);
+	} else {
+		egl = init_cube_tex(gbm, mode);
+	}
+
 	if (!egl) {
 		printf("failed to initialize EGL\n");
 		return -1;
