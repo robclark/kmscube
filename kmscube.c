@@ -35,7 +35,6 @@
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
-#include <gbm.h>
 
 #define GL_GLEXT_PROTOTYPES 1
 #include <GLES2/gl2.h>
@@ -45,6 +44,7 @@
 
 #include <assert.h>
 
+#include "common.h"
 #include "esUtil.h"
 
 
@@ -64,10 +64,7 @@ static struct {
 	PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
 } gl;
 
-static struct {
-	struct gbm_device *dev;
-	struct gbm_surface *surface;
-} gbm;
+static const struct gbm *gbm;
 
 static struct {
 	int fd;
@@ -203,22 +200,6 @@ static int init_drm(const char *dev)
 	}
 
 	drm.connector_id = connector->connector_id;
-
-	return 0;
-}
-
-static int init_gbm(void)
-{
-	gbm.dev = gbm_create_device(drm.fd);
-
-	gbm.surface = gbm_surface_create(gbm.dev,
-			drm.mode->hdisplay, drm.mode->vdisplay,
-			GBM_FORMAT_XRGB8888,
-			GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
-	if (!gbm.surface) {
-		printf("failed to create gbm surface\n");
-		return -1;
-	}
 
 	return 0;
 }
@@ -383,10 +364,12 @@ static int init_gl(void)
 
 	get_proc(eglGetPlatformDisplayEXT);
 
-	if (gl.eglGetPlatformDisplayEXT)
-		gl.display = gl.eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR, gbm.dev, NULL);
-	else
-		gl.display = eglGetDisplay(gbm.dev);
+	if (gl.eglGetPlatformDisplayEXT) {
+		gl.display = gl.eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR,
+				gbm->dev, NULL);
+	} else {
+		gl.display = eglGetDisplay((void *)gbm->dev);
+	}
 
 	if (!eglInitialize(gl.display, &major, &minor)) {
 		printf("failed to initialize\n");
@@ -417,7 +400,8 @@ static int init_gl(void)
 		return -1;
 	}
 
-	gl.surface = eglCreateWindowSurface(gl.display, gl.config, gbm.surface, NULL);
+	gl.surface = eglCreateWindowSurface(gl.display, gl.config,
+			(EGLNativeWindowType)gbm->surface, NULL);
 	if (gl.surface == EGL_NO_SURFACE) {
 		printf("failed to create egl surface\n");
 		return -1;
@@ -670,10 +654,10 @@ int main(int argc, char *argv[])
 	FD_SET(0, &fds);
 	FD_SET(drm.fd, &fds);
 
-	ret = init_gbm();
-	if (ret) {
+	gbm = init_gbm(drm.fd, drm.mode->hdisplay, drm.mode->vdisplay);
+	if (!gbm) {
 		printf("failed to initialize GBM\n");
-		return ret;
+		return -1;
 	}
 
 	ret = init_gl();
@@ -686,7 +670,7 @@ int main(int argc, char *argv[])
 	glClearColor(0.5, 0.5, 0.5, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	eglSwapBuffers(gl.display, gl.surface);
-	bo = gbm_surface_lock_front_buffer(gbm.surface);
+	bo = gbm_surface_lock_front_buffer(gbm->surface);
 	fb = drm_fb_get_from_bo(bo);
 
 	/* set mode: */
@@ -704,7 +688,7 @@ int main(int argc, char *argv[])
 		draw(i++);
 
 		eglSwapBuffers(gl.display, gl.surface);
-		next_bo = gbm_surface_lock_front_buffer(gbm.surface);
+		next_bo = gbm_surface_lock_front_buffer(gbm->surface);
 		fb = drm_fb_get_from_bo(next_bo);
 
 		/*
@@ -735,7 +719,7 @@ int main(int argc, char *argv[])
 		}
 
 		/* release last buffer to render on again: */
-		gbm_surface_release_buffer(gbm.surface, bo);
+		gbm_surface_release_buffer(gbm->surface, bo);
 		bo = next_bo;
 	}
 

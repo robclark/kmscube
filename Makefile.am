@@ -40,5 +40,7 @@ kmscube_CFLAGS = \
 	$(GLES2_CFLAGS)
 
 kmscube_SOURCES = \
+	common.c \
+	common.h \
 	kmscube.c \
 	esTransform.c
