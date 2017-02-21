@@ -60,6 +60,8 @@ static struct {
 	GLint modelviewmatrix, modelviewprojectionmatrix, normalmatrix;
 	GLuint vbo;
 	GLuint positionsoffset, colorsoffset, normalsoffset;
+
+	PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
 } gl;
 
 static struct {
@@ -375,12 +377,16 @@ static int init_gl(void)
 			"    gl_FragColor = vVaryingColor;  \n"
 			"}                                  \n";
 
-	PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display = NULL;
-	get_platform_display =
-		(void *) eglGetProcAddress("eglGetPlatformDisplayEXT");
-	assert(get_platform_display != NULL);
+#define get_proc(name) do { \
+		gl.name = (void *)eglGetProcAddress(#name); \
+	} while (0)
 
-	gl.display = get_platform_display(EGL_PLATFORM_GBM_KHR, gbm.dev, NULL);
+	get_proc(eglGetPlatformDisplayEXT);
+
+	if (gl.eglGetPlatformDisplayEXT)
+		gl.display = gl.eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR, gbm.dev, NULL);
+	else
+		gl.display = eglGetDisplay(gbm.dev);
 
 	if (!eglInitialize(gl.display, &major, &minor)) {
 		printf("failed to initialize\n");
