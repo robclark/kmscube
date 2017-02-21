@@ -43,5 +43,7 @@ kmscube_SOURCES = \
 	common.c \
 	common.h \
 	cube-smooth.c \
+	frame-512x512-NV12.c \
+	frame-512x512-RGBA.c \
 	kmscube.c \
 	esTransform.c
