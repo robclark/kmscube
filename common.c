@@ -40,9 +40,88 @@ const struct gbm * init_gbm(int drm_fd, int w, int h)
 		return NULL;
 	}
 
+	gbm.width = w;
+	gbm.height = h;
+
 	return &gbm;
 }
 
+
+int init_egl(struct egl *egl, const struct gbm *gbm)
+{
+	EGLint major, minor, n;
+
+	static const EGLint context_attribs[] = {
+		EGL_CONTEXT_CLIENT_VERSION, 2,
+		EGL_NONE
+	};
+
+	static const EGLint config_attribs[] = {
+		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+		EGL_RED_SIZE, 1,
+		EGL_GREEN_SIZE, 1,
+		EGL_BLUE_SIZE, 1,
+		EGL_ALPHA_SIZE, 0,
+		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_NONE
+	};
+
+#define get_proc(name) do { \
+		egl->name = (void *)eglGetProcAddress(#name); \
+	} while (0)
+
+	get_proc(eglGetPlatformDisplayEXT);
+
+	if (egl->eglGetPlatformDisplayEXT) {
+		egl->display = egl->eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR,
+				gbm->dev, NULL);
+	} else {
+		egl->display = eglGetDisplay((void *)gbm->dev);
+	}
+
+	if (!eglInitialize(egl->display, &major, &minor)) {
+		printf("failed to initialize\n");
+		return -1;
+	}
+
+	printf("Using display %p with EGL version %d.%d\n",
+			egl->display, major, minor);
+
+	printf("EGL Version \"%s\"\n", eglQueryString(egl->display, EGL_VERSION));
+	printf("EGL Vendor \"%s\"\n", eglQueryString(egl->display, EGL_VENDOR));
+	printf("EGL Extensions \"%s\"\n", eglQueryString(egl->display, EGL_EXTENSIONS));
+
+	if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+		printf("failed to bind api EGL_OPENGL_ES_API\n");
+		return -1;
+	}
+
+	if (!eglChooseConfig(egl->display, config_attribs, &egl->config, 1, &n) || n != 1) {
+		printf("failed to choose config: %d\n", n);
+		return -1;
+	}
+
+	egl->context = eglCreateContext(egl->display, egl->config,
+			EGL_NO_CONTEXT, context_attribs);
+	if (egl->context == NULL) {
+		printf("failed to create context\n");
+		return -1;
+	}
+
+	egl->surface = eglCreateWindowSurface(egl->display, egl->config,
+			(EGLNativeWindowType)gbm->surface, NULL);
+	if (egl->surface == EGL_NO_SURFACE) {
+		printf("failed to create egl surface\n");
+		return -1;
+	}
+
+	/* connect the context to the surface */
+	eglMakeCurrent(egl->display, egl->surface, egl->surface, egl->context);
+
+	printf("GL Extensions: \"%s\"\n", glGetString(GL_EXTENSIONS));
+
+	return 0;
+}
 
 int create_program(const char *vs_src, const char *fs_src)
 {

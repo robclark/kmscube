@@ -42,5 +42,6 @@ kmscube_CFLAGS = \
 kmscube_SOURCES = \
 	common.c \
 	common.h \
+	cube-smooth.c \
 	kmscube.c \
 	esTransform.c
