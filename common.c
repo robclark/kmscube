@@ -22,6 +22,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "common.h"
 
@@ -42,3 +43,82 @@ const struct gbm * init_gbm(int drm_fd, int w, int h)
 	return &gbm;
 }
 
+
+int create_program(const char *vs_src, const char *fs_src)
+{
+	GLuint vertex_shader, fragment_shader, program;
+	GLint ret;
+
+	vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+
+	glShaderSource(vertex_shader, 1, &vs_src, NULL);
+	glCompileShader(vertex_shader);
+
+	glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &ret);
+	if (!ret) {
+		char *log;
+
+		printf("vertex shader compilation failed!:\n");
+		glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &ret);
+		if (ret > 1) {
+			log = malloc(ret);
+			glGetShaderInfoLog(vertex_shader, ret, NULL, log);
+			printf("%s", log);
+		}
+
+		return -1;
+	}
+
+	fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+
+	glShaderSource(fragment_shader, 1, &fs_src, NULL);
+	glCompileShader(fragment_shader);
+
+	glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &ret);
+	if (!ret) {
+		char *log;
+
+		printf("fragment shader compilation failed!:\n");
+		glGetShaderiv(fragment_shader, GL_INFO_LOG_LENGTH, &ret);
+
+		if (ret > 1) {
+			log = malloc(ret);
+			glGetShaderInfoLog(fragment_shader, ret, NULL, log);
+			printf("%s", log);
+		}
+
+		return -1;
+	}
+
+	program = glCreateProgram();
+
+	glAttachShader(program, vertex_shader);
+	glAttachShader(program, fragment_shader);
+
+	return program;
+}
+
+int link_program(unsigned program)
+{
+	GLint ret;
+
+	glLinkProgram(program);
+
+	glGetProgramiv(program, GL_LINK_STATUS, &ret);
+	if (!ret) {
+		char *log;
+
+		printf("program linking failed!:\n");
+		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &ret);
+
+		if (ret > 1) {
+			log = malloc(ret);
+			glGetProgramInfoLog(program, ret, NULL, log);
+			printf("%s", log);
+		}
+
+		return -1;
+	}
+
+	return 0;
+}

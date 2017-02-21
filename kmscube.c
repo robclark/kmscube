@@ -36,12 +36,6 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
-#define GL_GLEXT_PROTOTYPES 1
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
 #include <assert.h>
 
 #include "common.h"
@@ -207,8 +201,7 @@ static int init_drm(const char *dev)
 static int init_gl(void)
 {
 	EGLint major, minor, n;
-	GLuint vertex_shader, fragment_shader;
-	GLint ret;
+	int ret;
 
 	static const GLfloat vVertices[] = {
 			// front
@@ -412,73 +405,19 @@ static int init_gl(void)
 
 	printf("GL Extensions: \"%s\"\n", glGetString(GL_EXTENSIONS));
 
-	vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+	ret = create_program(vertex_shader_source, fragment_shader_source);
+	if (ret < 0)
+		return ret;
 
-	glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL);
-	glCompileShader(vertex_shader);
-
-	glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &ret);
-	if (!ret) {
-		char *log;
-
-		printf("vertex shader compilation failed!:\n");
-		glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &ret);
-		if (ret > 1) {
-			log = malloc(ret);
-			glGetShaderInfoLog(vertex_shader, ret, NULL, log);
-			printf("%s", log);
-		}
-
-		return -1;
-	}
-
-	fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-
-	glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL);
-	glCompileShader(fragment_shader);
-
-	glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &ret);
-	if (!ret) {
-		char *log;
-
-		printf("fragment shader compilation failed!:\n");
-		glGetShaderiv(fragment_shader, GL_INFO_LOG_LENGTH, &ret);
-
-		if (ret > 1) {
-			log = malloc(ret);
-			glGetShaderInfoLog(fragment_shader, ret, NULL, log);
-			printf("%s", log);
-		}
-
-		return -1;
-	}
-
-	gl.program = glCreateProgram();
-
-	glAttachShader(gl.program, vertex_shader);
-	glAttachShader(gl.program, fragment_shader);
+	gl.program = ret;
 
 	glBindAttribLocation(gl.program, 0, "in_position");
 	glBindAttribLocation(gl.program, 1, "in_normal");
 	glBindAttribLocation(gl.program, 2, "in_color");
 
-	glLinkProgram(gl.program);
-
-	glGetProgramiv(gl.program, GL_LINK_STATUS, &ret);
-	if (!ret) {
-		char *log;
-
-		printf("program linking failed!:\n");
-		glGetProgramiv(gl.program, GL_INFO_LOG_LENGTH, &ret);
-
-		if (ret > 1) {
-			log = malloc(ret);
-			glGetProgramInfoLog(gl.program, ret, NULL, log);
-			printf("%s", log);
-		}
-
-		return -1;
-	}
+	ret = link_program(gl.program);
+	if (ret < 0)
+		return ret;
 
 	glUseProgram(gl.program);
 

@@ -26,11 +26,21 @@
 
 #include <gbm.h>
 
+#define GL_GLEXT_PROTOTYPES 1
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+
 struct gbm {
 	struct gbm_device *dev;
 	struct gbm_surface *surface;
 };
 
 const struct gbm * init_gbm(int drm_fd, int w, int h);
+
+
+int create_program(const char *vs_src, const char *fs_src);
+int link_program(unsigned program);
 
 #endif /* _COMMON_H */
