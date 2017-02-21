@@ -30,6 +30,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <errno.h>
 
 #include <xf86drm.h>
@@ -119,14 +120,14 @@ static uint32_t find_crtc_for_connector(const drmModeRes *resources,
 	return -1;
 }
 
-static int init_drm(void)
+static int init_drm(const char *dev)
 {
 	drmModeRes *resources;
 	drmModeConnector *connector = NULL;
 	drmModeEncoder *encoder = NULL;
 	int i, area;
 
-	drm.fd = open("/dev/dri/card0", O_RDWR);
+	drm.fd = open(dev, O_RDWR);
 
 	if (drm.fd < 0) {
 		printf("could not open drm device\n");
@@ -612,6 +613,22 @@ static void page_flip_handler(int fd, unsigned int frame,
 	*waiting_for_flip = 0;
 }
 
+static const char *shortopts = "D:";
+
+static const struct option longopts[] = {
+	{"device", required_argument, 0, 'D'},
+	{0, 0, 0, 0}
+};
+
+static void usage(const char *name)
+{
+	printf("Usage: %s [-D]\n"
+			"\n"
+			"options:\n"
+			"    -D, --device=DEVICE      use the given device\n",
+			name);
+}
+
 int main(int argc, char *argv[])
 {
 	fd_set fds;
@@ -622,9 +639,22 @@ int main(int argc, char *argv[])
 	struct gbm_bo *bo;
 	struct drm_fb *fb;
 	uint32_t i = 0;
-	int ret;
+	const char *device = "/dev/dri/card0";
+	int opt, ret;
 
-	ret = init_drm();
+	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
+		switch (opt) {
+		case 'D':
+			device = optarg;
+			break;
+		default:
+			printf("error: unknown option: %c\n", opt);
+			usage(argv[0]);
+			return -1;
+		}
+	}
+
+	ret = init_drm(device);
 	if (ret) {
 		printf("failed to initialize DRM\n");
 		return ret;
