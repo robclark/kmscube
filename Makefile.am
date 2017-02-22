@@ -46,6 +46,7 @@ kmscube_SOURCES = \
 	cube-tex.c \
 	drm.c \
 	drm.h \
+	drm-atomic.c \
 	drm-legacy.c \
 	frame-512x512-NV12.c \
 	frame-512x512-RGBA.c \

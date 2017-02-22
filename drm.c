@@ -194,6 +194,13 @@ int init_drm(struct drm *drm, const char *device)
 		drm->crtc_id = crtc_id;
 	}
 
+	for (i = 0; i < resources->count_crtcs; i++) {
+		if (resources->crtcs[i] == drm->crtc_id) {
+			drm->crtc_index = i;
+			break;
+		}
+	}
+
 	drmModeFreeResources(resources);
 
 	drm->connector_id = connector->connector_id;

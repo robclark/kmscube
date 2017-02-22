@@ -38,9 +38,10 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "D:M:";
+static const char *shortopts = "AD:M:";
 
 static const struct option longopts[] = {
+	{"atomic", no_argument,       0, 'M'},
 	{"device", required_argument, 0, 'D'},
 	{"mode",   required_argument, 0, 'M'},
 	{0, 0, 0, 0}
@@ -48,9 +49,10 @@ static const struct option longopts[] = {
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-D]\n"
+	printf("Usage: %s [-ADM]\n"
 			"\n"
 			"options:\n"
+			"    -A, --atomic             use atomic modesetting and fencing\n"
 			"    -D, --device=DEVICE      use the given device\n"
 			"    -M, --mode=MODE          specify mode, one of:\n"
 			"        smooth    -  smooth shaded cube (default)\n"
@@ -64,10 +66,14 @@ int main(int argc, char *argv[])
 {
 	const char *device = "/dev/dri/card0";
 	enum mode mode = SMOOTH;
+	int atomic = 0;
 	int opt, ret;
 
 	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (opt) {
+		case 'A':
+			atomic = 1;
+			break;
 		case 'D':
 			device = optarg;
 			break;
@@ -92,9 +98,12 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	drm = init_drm_legacy(device);
+	if (atomic)
+		drm = init_drm_atomic(device);
+	else
+		drm = init_drm_legacy(device);
 	if (!drm) {
-		printf("failed to initialize DRM\n");
+		printf("failed to initialize %s DRM\n", atomic ? "atomic" : "legacy");
 		return ret;
 	}
 
