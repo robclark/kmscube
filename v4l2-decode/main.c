@@ -21,6 +21,7 @@
  *
  */
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,12 +37,14 @@
 #include <unistd.h>
 #include <termios.h>
 
-#include "args.h"
 #include "common.h"
 #include "video.h"
-#include "display.h"
 
 #define DBG_TAG "  main"
+
+int debug_level = 2;
+
+#define DRM_ALIGN(val, align)	((val + (align - 1)) & ~(align - 1))
 
 #define av_err(errnum, fmt, ...) \
 	err(fmt ": %s", ##__VA_ARGS__, av_err2str(errnum))
@@ -71,8 +74,34 @@ subscribe_events(struct instance *i)
 	return 0;
 }
 
+static EGLImage create_egl_image(struct egl *egl, struct instance *i, int fd)
+{
+	uint32_t stride = DRM_ALIGN(i->width, 128);
+	uint32_t y_scanlines = DRM_ALIGN(i->height, 32);
+
+	const EGLint attr[] = {
+		EGL_WIDTH, i->width,
+		EGL_HEIGHT, i->height,
+		EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_NV12,
+		EGL_DMA_BUF_PLANE0_FD_EXT, fd,
+		EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
+		EGL_DMA_BUF_PLANE0_PITCH_EXT, stride,
+		EGL_DMA_BUF_PLANE1_FD_EXT, fd,
+		EGL_DMA_BUF_PLANE1_OFFSET_EXT, stride * y_scanlines,
+		EGL_DMA_BUF_PLANE1_PITCH_EXT, stride,
+		EGL_NONE
+	};
+	EGLImage img;
+
+	img = egl->eglCreateImageKHR(egl->display, EGL_NO_CONTEXT,
+			EGL_LINUX_DMA_BUF_EXT, NULL, attr);
+	assert(img);
+
+	return img;
+}
+
 static int
-restart_capture(struct instance *i)
+restart_capture(struct egl *egl, struct instance *i)
 {
 	struct video *vid = &i->video;
 	unsigned int n;
@@ -94,17 +123,8 @@ restart_capture(struct instance *i)
 
 		dbg("exported capture buffer index:%u, fd:%d", n, fd);
 
-		i->v4l_dmabuf_fd[n] = fd;
-		i->disp_buf[n].dbuf_fd = fd;
-
-		ret = drm_dmabuf_import(&i->disp_buf[n], i->width, i->height);
-		if (ret) {
-			err("cannot import dmabuf %d", ret);
-			return -1;
-		}
-
-		ret = drm_dmabuf_addfb(&i->disp_buf[n], i->width, i->height);
-		if (ret)
+		i->eglimg[n] = create_egl_image(egl, i, fd);
+		if (!i->eglimg[n])
 			return -1;
 	}
 
@@ -403,7 +423,7 @@ parser_thread_func(void *args)
 	return NULL;
 }
 
-static int
+static EGLImage
 handle_video_capture(struct instance *i)
 {
 	struct video *vid = &i->video;
@@ -418,7 +438,7 @@ handle_video_capture(struct instance *i)
 				    &bytesused, &tv);
 	if (ret < 0) {
 		err("dequeue capture buffer fail");
-		return ret;
+		return NULL;
 	}
 
 	if (bytesused > 0) {
@@ -431,9 +451,6 @@ handle_video_capture(struct instance *i)
 			tv.tv_sec, tv.tv_usec);
 
 		i->video_current_pts_time = av_gettime();
-
-		drm_dmabuf_set_plane(&i->disp_buf[n], i->width, i->height,
-				     i->fullscreen);
 
 		if (in_disp != -1)
 			video_queue_buf_cap(i, in_disp);
@@ -448,7 +465,7 @@ handle_video_capture(struct instance *i)
 		finish(i);
 	}
 
-	return 0;
+	return i->eglimg[n];
 }
 
 static int
@@ -513,7 +530,7 @@ setup_signal(struct instance *i)
 	return 0;
 }
 
-static void main_loop(struct instance *i)
+EGLImage video_frame(struct instance *i)
 {
 	struct video *vid = &i->video;
 	struct pollfd pfd[3];
@@ -521,8 +538,6 @@ static void main_loop(struct instance *i)
 	int nfds = 0;
 	int ret;
 	unsigned int idx;
-
-	dbg("main thread started");
 
 	pfd[nfds].fd = vid->fd;
 	pfd[nfds].events = POLLOUT | POLLWRNORM | POLLPRI;
@@ -554,7 +569,7 @@ static void main_loop(struct instance *i)
 			switch (idx) {
 			case 0:
 				if (revents & (POLLIN | POLLRDNORM))
-					handle_video_capture(i);
+					return handle_video_capture(i);
 				if (revents & (POLLOUT | POLLWRNORM))
 					handle_video_output(i);
 				if (revents & POLLPRI)
@@ -567,9 +582,12 @@ static void main_loop(struct instance *i)
 		}
 	}
 
-	dbg("main thread finished");
+	dbg("end of stream");
+
+	return NULL;
 }
 
+#if 0
 static void *kbd_thread_func(void *args)
 {
 	struct instance *i = args;
@@ -633,18 +651,7 @@ static void *kbd_thread_func(void *args)
 
 	return NULL;
 }
-
-static int
-setup_display(struct instance *i)
-{
-	int ret;
-
-	ret = drm_init();
-	if (ret)
-		return ret;
-
-	return 0;
-}
+#endif
 
 static void
 stream_close(struct instance *i)
@@ -784,18 +791,15 @@ fail:
 	return -1;
 }
 
-int main(int argc, char **argv)
+struct instance *
+video_init(struct egl *egl, const char *filename)
 {
-	struct instance inst;
+	static struct instance inst;
 	pthread_t parser_thread;
 	pthread_t kbd_thread;
 	int ret;
 
-	ret = parse_args(&inst, argc, argv);
-	if (ret) {
-		print_usage(argv[0]);
-		return 1;
-	}
+	inst.url = filename;
 
 	inst.sigfd = -1;
 	pthread_mutex_init(&inst.lock, 0);
@@ -817,10 +821,6 @@ int main(int argc, char **argv)
 	if (ret)
 		goto err;
 
-	ret = setup_display(&inst);
-	if (ret)
-		goto err;
-
 	ret = video_set_control(&inst);
 	if (ret)
 		goto err;
@@ -830,7 +830,7 @@ int main(int argc, char **argv)
 	if (ret)
 		goto err;
 
-	ret = restart_capture(&inst);
+	ret = restart_capture(egl, &inst);
 	if (ret)
 		goto err;
 
@@ -841,6 +841,7 @@ int main(int argc, char **argv)
 	if (pthread_create(&parser_thread, NULL, parser_thread_func, &inst))
 		goto err;
 
+#if 0
 	if (pthread_create(&kbd_thread, NULL, kbd_thread_func, &inst))
 		goto err;
 
@@ -848,17 +849,17 @@ int main(int argc, char **argv)
 
 	pthread_join(parser_thread, 0);
 	pthread_join(kbd_thread, 0);
+#endif
 
-	dbg("Threads have finished");
+	return &inst;
 
+#if 0
 	struct video *vid = &inst.video;
 
 	for (int n = 0; n < vid->cap_buf_cnt; n++) {
 		close(inst.disp_buf[n].dbuf_fd);
 		drm_dmabuf_rmfb(&inst.disp_buf[n]);
 	}
-
-	drm_deinit();
 
 	video_stop_capture(&inst);
 	video_stop_output(&inst);
@@ -874,5 +875,9 @@ int main(int argc, char **argv)
 err:
 	cleanup(&inst);
 	return 1;
+#endif
+
+err:
+	return NULL;
 }
 

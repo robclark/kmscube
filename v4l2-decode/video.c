@@ -637,11 +637,6 @@ int video_stop_capture(struct instance *i)
 	if (video_stream(i, type, VIDIOC_STREAMOFF))
 		return -1;
 
-#if 1
-	for (n = 0; n < vid->cap_buf_cnt; n++) {
-		close(i->v4l_dmabuf_fd[n]);
-	}
-#endif
 	vid->cap_buf_cnt = 0;
 
 	memzero(reqbuf);

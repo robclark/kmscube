@@ -45,6 +45,14 @@ PKG_CHECK_MODULES(GBM, gbm)
 PKG_CHECK_MODULES(EGL, egl)
 PKG_CHECK_MODULES(GLES2, glesv2)
 
+# Check for ffmpeg and enable v4l2-decode conditionally:
+PKG_CHECK_MODULES(FFMPEG, libavformat libavutil libavcodec, [HAVE_FFMPEG=yes], [HAVE_FFMPEG=no])
+if test "x$HAVE_FFMPEG" = "xyes"; then
+	AC_DEFINE(HAVE_FFMPEG, 1, [Have FFMPEG support])
+	AC_MSG_NOTICE([Building v4l2-decode support])
+fi
+AM_CONDITIONAL(ENABLE_V4L2, [test "x$HAVE_FFMPEG" = "xyes"])
+
 dnl ===========================================================================
 dnl check compiler flags
 AC_DEFUN([LIBDRM_CC_TRY_FLAG], [
@@ -83,5 +91,5 @@ done
 
 AC_SUBST(WARN_CFLAGS)
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile v4l2-decode/Makefile])
 AC_OUTPUT

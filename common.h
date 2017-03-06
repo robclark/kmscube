@@ -69,9 +69,11 @@ enum mode {
 	RGBA,          /* single-plane RGBA */
 	NV12_2IMG,     /* NV12, handled as two textures and converted to RGB in shader */
 	NV12_1IMG,     /* NV12, imported as planar YUV eglimg */
+	VIDEO,         /* video textured cube */
 };
 
 const struct egl * init_cube_smooth(const struct gbm *gbm);
 const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode);
+const struct egl * init_cube_video(const struct gbm *gbm, const char *video);
 
 #endif /* _COMMON_H */

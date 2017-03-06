@@ -29,12 +29,11 @@
 #include <pthread.h>
 #include <sys/time.h>
 
+#include "../common.h"
+
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/time.h>
-
-#include "display.h"
-#include "drm-funcs.h"
 
 /* mem2mem encoder/decoder */
 #define V4L2_BUF_FLAG_LAST			0x00100000
@@ -118,7 +117,7 @@ struct instance {
 	unsigned int save_frames;
 	int decode_order;
 	char *save_path;
-	char *url;
+	const char *url;
 
 	/* video decoder related parameters */
 	struct video video;
@@ -137,10 +136,7 @@ struct instance {
 
 	struct display *display;
 	struct window *window;
-	struct fb *disp_buffers[MAX_CAP_BUF];
-	int v4l_dmabuf_fd[MAX_CAP_BUF];
-
-	struct drm_buffer disp_buf[MAX_CAP_BUF];
+	struct EGLImage *eglimg[MAX_CAP_BUF];
 
 	AVFormatContext *avctx;
 	AVStream *stream;

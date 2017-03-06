@@ -21,44 +21,13 @@
 #  SOFTWARE.
 #
 
-bin_PROGRAMS = kmscube
+noinst_LTLIBRARIES = libv4l2.la
 
-if ENABLE_V4L2
-SUBDIRS = v4l2-decode
-endif
-
-kmscube_LDFLAGS = \
-	-no-undefined
-
-kmscube_LDADD = \
-	$(DRM_LIBS) \
-	$(GBM_LIBS) \
-	$(EGL_LIBS) \
-	$(GLES2_LIBS)
-
-kmscube_CFLAGS = \
-	-O0 -g -lm \
-	$(DRM_CFLAGS) \
-	$(GBM_CFLAGS) \
-	$(EGL_CFLAGS) \
-	$(GLES2_CFLAGS)
-
-kmscube_SOURCES = \
-	common.c \
+libv4l2_la_SOURCES = \
 	common.h \
-	cube-smooth.c \
-	cube-tex.c \
-	drm.c \
-	drm.h \
-	drm-atomic.c \
-	drm-legacy.c \
-	frame-512x512-NV12.c \
-	frame-512x512-RGBA.c \
-	kmscube.c \
-	esTransform.c
+	main.c \
+	video.c \
+	video.h
 
-if ENABLE_V4L2
-kmscube_LDADD += v4l2-decode/libv4l2.la $(FFMPEG_LIBS)
-kmscube_SOURCES += cube-video.c
-endif
-
+libv4l2_la_CFLAGS = $(FFMPEG_CFLAGS)
+libv4l2_la_LIBADD = $(FFMPEG_LIBS) -lpthread
