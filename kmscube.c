@@ -38,7 +38,7 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:M:";
+static const char *shortopts = "AD:M:V:";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'M'},

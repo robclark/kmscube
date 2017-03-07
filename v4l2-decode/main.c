@@ -794,7 +794,7 @@ fail:
 struct instance *
 video_init(struct egl *egl, const char *filename)
 {
-	static struct instance inst;
+	static struct instance inst = {0};
 	pthread_t parser_thread;
 	pthread_t kbd_thread;
 	int ret;
@@ -808,6 +808,8 @@ video_init(struct egl *egl, const char *filename)
 	ret = stream_open(&inst);
 	if (ret)
 		goto err;
+
+	inst.video.name = "/dev/video0";
 
 	ret = video_open(&inst, inst.video.name);
 	if (ret)
