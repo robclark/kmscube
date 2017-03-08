@@ -228,7 +228,7 @@ static void draw_cube_video(unsigned i)
 
 	ESMatrix projection;
 	esMatrixLoadIdentity(&projection);
-	esFrustum(&projection, -2.8f, +2.8f, -2.8f * gl.aspect, +2.8f * gl.aspect, 6.0f, 10.0f);
+	esFrustum(&projection, -2.1f, +2.1f, -2.1f * gl.aspect, +2.1f * gl.aspect, 6.0f, 10.0f);
 
 	ESMatrix modelviewprojection;
 	esMatrixLoadIdentity(&modelviewprojection);
