@@ -112,7 +112,7 @@ restart_capture(struct egl *egl, struct instance *i)
 		return -1;
 
 	/* Setup capture queue with new parameters */
-	if (video_setup_capture(i, 4, i->width, i->height))
+	if (video_setup_capture(i, 8, i->width, i->height))
 		return -1;
 
 	for (n = 0; n < vid->cap_buf_cnt; n++) {
@@ -793,11 +793,12 @@ fail:
 	return -1;
 }
 
+struct instance * video_start(struct instance *inst);
+
 struct instance *
 video_init(struct egl *egl, const char *filename)
 {
 	struct instance *inst;
-	int ret;
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst)
@@ -805,6 +806,17 @@ video_init(struct egl *egl, const char *filename)
 
 	inst->video.name = "/dev/video0";
 	inst->url = filename;
+	inst->egl = egl;
+
+	video_start(inst);
+
+	return inst;
+}
+
+struct instance *
+video_start(struct instance *inst)
+{
+	int ret;
 
 	inst->sigfd = -1;
 	pthread_mutex_init(&inst->lock, 0);
@@ -835,7 +847,7 @@ video_init(struct egl *egl, const char *filename)
 	if (ret)
 		goto err;
 
-	ret = restart_capture(egl, inst);
+	ret = restart_capture(inst->egl, inst);
 	if (ret)
 		goto err;
 
@@ -893,8 +905,10 @@ void video_deinit(struct instance *inst)
 
 	pthread_join(inst->parser_thread, 0);
 
-	for (i = 0; i < inst->video.cap_buf_cnt; i++)
+	for (i = 0; i < inst->video.cap_buf_cnt; i++) {
 		close(inst->dmabuf_fds[i]);
+		inst->egl->eglDestroyImageKHR(inst->egl->display, inst->eglimg[i]);
+	}
 
 	video_stop_capture(inst);
 	video_stop_output(inst);

@@ -150,6 +150,8 @@ struct instance {
 	int64_t last_pts;
 	int64_t video_current_pts_time;
 	double video_current_pts;
+
+	struct egl *egl;
 };
 
 #endif /* INCLUDE_COMMON_H */

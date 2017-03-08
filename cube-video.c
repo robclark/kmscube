@@ -35,6 +35,7 @@ struct instance;
 struct instance * video_init(struct egl *egl, const char *filename);
 EGLImage video_frame(struct instance *inst);
 void video_deinit(struct instance *inst);
+struct instance * video_start(struct instance *inst);
 
 struct {
 	struct egl egl;
@@ -205,7 +206,7 @@ static int draw_cube_video(unsigned i)
 	if (!frame) {
 		/* end of stream */
 		video_deinit(gl.decoder);
-		return -1;
+		video_start(gl.decoder);
 	}
 
 	glActiveTexture(GL_TEXTURE0);
