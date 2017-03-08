@@ -205,6 +205,8 @@ static int draw_cube_video(unsigned i)
 	frame = video_frame(gl.decoder);
 	if (!frame) {
 		/* end of stream */
+		glDeleteTextures(1, &gl.tex);
+		glGenTextures(1, &gl.tex);
 		video_deinit(gl.decoder);
 		video_start(gl.decoder);
 	}

@@ -644,8 +644,8 @@ int video_stop_capture(struct instance *i)
 	reqbuf.type = type;
 
 	if (ioctl(vid->fd, VIDIOC_REQBUFS, &reqbuf) < 0) {
-		err("REQBUFS with count=0 on %s queue failed: %m",
-		    buf_type_to_string(type));
+		err("REQBUFS with count=0 on %s queue failed: %m (%s)",
+		    buf_type_to_string(type), strerror(errno));
 		return -1;
 	}
 

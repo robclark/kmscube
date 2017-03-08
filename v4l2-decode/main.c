@@ -123,6 +123,8 @@ restart_capture(struct egl *egl, struct instance *i)
 
 		dbg("exported capture buffer index:%u, fd:%d", n, fd);
 
+		i->dmabuf_fds[n] = fd;
+
 		i->eglimg[n] = create_egl_image(egl, i, fd);
 		if (!i->eglimg[n])
 			return -1;
@@ -853,7 +855,7 @@ video_start(struct instance *inst)
 
 	dbg("Launching threads");
 
-	setup_signal(inst);
+//	setup_signal(inst);
 
 	if (pthread_create(&inst->parser_thread, NULL, parser_thread_func,
 			   inst))
