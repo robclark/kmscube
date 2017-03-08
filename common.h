@@ -31,7 +31,7 @@
 #include <EGL/eglext.h>
 
 #include <gbm.h>
-#include <drm/drm_fourcc.h>
+#include <libdrm/drm_fourcc.h>
 
 struct gbm {
 	struct gbm_device *dev;
