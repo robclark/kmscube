@@ -35,7 +35,6 @@ struct instance;
 struct instance * video_init(struct egl *egl, const char *filename);
 EGLImage video_frame(struct instance *inst);
 void video_deinit(struct instance *inst);
-struct instance * video_start(struct instance *inst);
 
 struct {
 	struct egl egl;
@@ -53,6 +52,7 @@ struct {
 
 	/* video decoder: */
 	struct instance *decoder;
+	const char *filename;
 } gl;
 
 static const struct egl *egl = &gl.egl;
@@ -208,7 +208,8 @@ static int draw_cube_video(unsigned i)
 		glDeleteTextures(1, &gl.tex);
 		glGenTextures(1, &gl.tex);
 		video_deinit(gl.decoder);
-		video_start(gl.decoder);
+		free(gl.decoder);
+		gl.decoder = video_init(&gl.egl, gl.filename);
 	}
 
 	glActiveTexture(GL_TEXTURE0);
@@ -276,6 +277,7 @@ const struct egl * init_cube_video(const struct gbm *gbm, const char *filename)
 		return NULL;
 	}
 
+	gl.filename = filename;
 	gl.decoder = video_init(&gl.egl, filename);
 	if (!gl.decoder) {
 		printf("cannot create video decoder\n");

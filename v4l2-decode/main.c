@@ -795,12 +795,11 @@ fail:
 	return -1;
 }
 
-struct instance * video_start(struct instance *inst);
-
 struct instance *
 video_init(struct egl *egl, const char *filename)
 {
 	struct instance *inst;
+	int ret;
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst)
@@ -809,16 +808,6 @@ video_init(struct egl *egl, const char *filename)
 	inst->video.name = "/dev/video0";
 	inst->url = filename;
 	inst->egl = egl;
-
-	video_start(inst);
-
-	return inst;
-}
-
-struct instance *
-video_start(struct instance *inst)
-{
-	int ret;
 
 	inst->sigfd = -1;
 	pthread_mutex_init(&inst->lock, 0);
