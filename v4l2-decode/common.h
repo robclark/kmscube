@@ -122,6 +122,8 @@ struct instance {
 	/* video decoder related parameters */
 	struct video video;
 
+	pthread_t parser_thread;
+	pthread_t kbd_thread;
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
 
@@ -137,6 +139,7 @@ struct instance {
 	struct display *display;
 	struct window *window;
 	struct EGLImage *eglimg[MAX_CAP_BUF];
+	int dmabuf_fds[MAX_CAP_BUF];
 
 	AVFormatContext *avctx;
 	AVStream *stream;

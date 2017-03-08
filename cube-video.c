@@ -34,7 +34,7 @@
 struct instance;
 struct instance * video_init(struct egl *egl, const char *filename);
 EGLImage video_frame(struct instance *inst);
-
+void video_deinit(struct instance *inst);
 
 struct {
 	struct egl egl;
@@ -196,7 +196,7 @@ static const char *fragment_shader_source =
 		"}                                  \n";
 
 
-static void draw_cube_video(unsigned i)
+static int draw_cube_video(unsigned i)
 {
 	ESMatrix modelview;
 	EGLImage frame;
@@ -204,8 +204,8 @@ static void draw_cube_video(unsigned i)
 	frame = video_frame(gl.decoder);
 	if (!frame) {
 		/* end of stream */
-		// TODO egl->draw() should return an error code to signal end of frame:
-		exit(0);
+		video_deinit(gl.decoder);
+		return -1;
 	}
 
 	glActiveTexture(GL_TEXTURE0);
@@ -256,6 +256,8 @@ static void draw_cube_video(unsigned i)
 	glDrawArrays(GL_TRIANGLE_STRIP, 12, 4);
 	glDrawArrays(GL_TRIANGLE_STRIP, 16, 4);
 	glDrawArrays(GL_TRIANGLE_STRIP, 20, 4);
+
+	return 0;
 }
 
 const struct egl * init_cube_video(const struct gbm *gbm, const char *filename)

@@ -57,7 +57,7 @@ struct egl {
 	PFNEGLWAITSYNCKHRPROC eglWaitSyncKHR;
 	PFNEGLDUPNATIVEFENCEFDANDROIDPROC eglDupNativeFenceFDANDROID;
 
-	void (*draw)(unsigned i);
+	int (*draw)(unsigned i);
 };
 
 int init_egl(struct egl *egl, const struct gbm *gbm);

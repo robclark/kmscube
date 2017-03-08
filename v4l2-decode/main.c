@@ -418,6 +418,8 @@ parser_thread_func(void *args)
 
 	av_packet_unref(&pkt);
 
+	finish(i);
+
 	dbg("Parser thread finished");
 
 	return NULL;
@@ -794,66 +796,68 @@ fail:
 struct instance *
 video_init(struct egl *egl, const char *filename)
 {
-	static struct instance inst = {0};
-	pthread_t parser_thread;
-	pthread_t kbd_thread;
+	struct instance *inst;
 	int ret;
 
-	inst.url = filename;
+	inst = calloc(1, sizeof(*inst));
+	if (!inst)
+		return NULL;
 
-	inst.sigfd = -1;
-	pthread_mutex_init(&inst.lock, 0);
-	pthread_cond_init(&inst.cond, 0);
+	inst->video.name = "/dev/video0";
+	inst->url = filename;
 
-	ret = stream_open(&inst);
+	inst->sigfd = -1;
+	pthread_mutex_init(&inst->lock, 0);
+	pthread_cond_init(&inst->cond, 0);
+
+	ret = stream_open(inst);
 	if (ret)
 		goto err;
 
-	inst.video.name = "/dev/video0";
-
-	ret = video_open(&inst, inst.video.name);
+	ret = video_open(inst, inst->video.name);
 	if (ret)
 		goto err;
 
-	ret = subscribe_events(&inst);
+	ret = subscribe_events(inst);
 	if (ret)
 		goto err;
 
-	ret = video_setup_output(&inst, inst.fourcc, STREAM_BUUFER_SIZE, 6);
+	ret = video_setup_output(inst, inst->fourcc, STREAM_BUUFER_SIZE, 6);
 	if (ret)
 		goto err;
 
-	ret = video_set_control(&inst);
+	ret = video_set_control(inst);
 	if (ret)
 		goto err;
 
-	ret = video_stream(&inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
+	ret = video_stream(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 			   VIDIOC_STREAMON);
 	if (ret)
 		goto err;
 
-	ret = restart_capture(egl, &inst);
+	ret = restart_capture(egl, inst);
 	if (ret)
 		goto err;
 
 	dbg("Launching threads");
 
-	setup_signal(&inst);
+	setup_signal(inst);
 
-	if (pthread_create(&parser_thread, NULL, parser_thread_func, &inst))
+	if (pthread_create(&inst->parser_thread, NULL, parser_thread_func,
+			   inst))
 		goto err;
 
 #if 0
-	if (pthread_create(&kbd_thread, NULL, kbd_thread_func, &inst))
+	if (pthread_create(&inst->kbd_thread, NULL, kbd_thread_func, inst))
 		goto err;
 
-	main_loop(&inst);
+	main_loop(inst);
 
-	pthread_join(parser_thread, 0);
-	pthread_join(kbd_thread, 0);
+	pthread_join(inst->parser_thread, 0);
+	pthread_join(inst->kbd_thread, 0);
 #endif
 
-	return &inst;
+	return inst;
 
 #if 0
 	struct video *vid = &inst.video;
@@ -883,3 +887,20 @@ err:
 	return NULL;
 }
 
+void video_deinit(struct instance *inst)
+{
+	int i;
+
+	pthread_join(inst->parser_thread, 0);
+
+	for (i = 0; i < inst->video.cap_buf_cnt; i++)
+		close(inst->dmabuf_fds[i]);
+
+	video_stop_capture(inst);
+	video_stop_output(inst);
+	cleanup(inst);
+
+	pthread_cond_destroy(&inst->cond);
+	pthread_mutex_destroy(&inst->lock);
+
+}

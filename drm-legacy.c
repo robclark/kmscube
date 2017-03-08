@@ -47,7 +47,7 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	struct gbm_bo *bo;
 	struct drm_fb *fb;
 	uint32_t i = 0;
-	int ret;
+	int ret = 0;
 
 	FD_ZERO(&fds);
 	FD_SET(0, &fds);
@@ -69,7 +69,9 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 		struct gbm_bo *next_bo;
 		int waiting_for_flip = 1;
 
-		egl->draw(i++);
+		ret = egl->draw(i++);
+		if (ret)
+			break;
 
 		eglSwapBuffers(egl->display, egl->surface);
 		next_bo = gbm_surface_lock_front_buffer(gbm->surface);
@@ -107,7 +109,7 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 		bo = next_bo;
 	}
 
-	return 0;
+	return ret;
 }
 
 const struct drm * init_drm_legacy(const char *device)
