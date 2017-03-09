@@ -93,35 +93,35 @@ static const GLfloat vVertices[] = {
 
 static GLfloat vTexCoords[] = {
 		//front
-		1.0f, 0.0f,
-		0.0f, 0.0f,
-		1.0f, 1.0f,
 		0.0f, 1.0f,
+		1.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 0.0f,
 		//back
-		1.0f, 0.0f,
-		0.0f, 0.0f,
-		1.0f, 1.0f,
 		0.0f, 1.0f,
+		1.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 0.0f,
 		//right
-		1.0f, 0.0f,
-		0.0f, 0.0f,
-		1.0f, 1.0f,
 		0.0f, 1.0f,
+		1.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 0.0f,
 		//left
-		1.0f, 0.0f,
-		0.0f, 0.0f,
-		1.0f, 1.0f,
 		0.0f, 1.0f,
+		1.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 0.0f,
 		//top
-		1.0f, 0.0f,
-		0.0f, 0.0f,
-		1.0f, 1.0f,
 		0.0f, 1.0f,
+		1.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 0.0f,
 		//bottom
-		1.0f, 0.0f,
-		0.0f, 0.0f,
-		1.0f, 1.0f,
 		0.0f, 1.0f,
+		1.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 0.0f,
 };
 
 static const GLfloat vNormals[] = {
@@ -159,7 +159,6 @@ static const GLfloat vNormals[] = {
 
 static const char *blit_vs =
 		"attribute vec4 in_position;        \n"
-		"attribute vec3 in_normal;          \n"
 		"attribute vec2 in_TexCoord;        \n"
 		"                                   \n"
 		"varying vec4 vVaryingColor;        \n"
@@ -169,6 +168,7 @@ static const char *blit_vs =
 		"{                                  \n"
 		"    gl_Position = in_position;     \n"
 		"    vTexCoord = in_TexCoord;       \n"
+		"    vVaryingColor = vec4(1.0);     \n"
 		"}                                  \n";
 
 static const char *vertex_shader_source =
@@ -177,8 +177,8 @@ static const char *vertex_shader_source =
 		"uniform mat3 normalMatrix;         \n"
 		"                                   \n"
 		"attribute vec4 in_position;        \n"
-		"attribute vec3 in_normal;          \n"
 		"attribute vec2 in_TexCoord;        \n"
+		"attribute vec3 in_normal;          \n"
 		"                                   \n"
 		"vec4 lightSource = vec4(2.0, 2.0, 20.0, 0.0);\n"
 		"                                   \n"
@@ -227,6 +227,8 @@ static int draw_cube_video(unsigned i)
 		gl.idx = (gl.idx + 1) % gl.filenames_count;
 		gl.decoder = video_init(&gl.egl, gl.filenames[gl.idx]);
 	}
+
+	glUseProgram(gl.blit_program);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_EXTERNAL_OES, gl.tex);
@@ -329,14 +331,11 @@ printf("filenames[%d]: %s\n", i, fnames);
 	gl.blit_program = ret;
 
 	glBindAttribLocation(gl.blit_program, 0, "in_position");
-	glBindAttribLocation(gl.blit_program, 1, "in_normal");
-	glBindAttribLocation(gl.blit_program, 2, "in_TexCoord");
+	glBindAttribLocation(gl.blit_program, 1, "in_TexCoord");
 
 	ret = link_program(gl.blit_program);
 	if (ret)
 		return NULL;
-
-	glUseProgram(gl.blit_program);
 
 	gl.blit_texture = glGetUniformLocation(gl.blit_program, "uTex");
 
@@ -347,14 +346,12 @@ printf("filenames[%d]: %s\n", i, fnames);
 	gl.program = ret;
 
 	glBindAttribLocation(gl.program, 0, "in_position");
-	glBindAttribLocation(gl.program, 1, "in_normal");
-	glBindAttribLocation(gl.program, 2, "in_TexCoord");
+	glBindAttribLocation(gl.program, 1, "in_TexCoord");
+	glBindAttribLocation(gl.program, 2, "in_normal");
 
 	ret = link_program(gl.program);
 	if (ret)
 		return NULL;
-
-	glUseProgram(gl.program);
 
 	gl.modelviewmatrix = glGetUniformLocation(gl.program, "modelviewMatrix");
 	gl.modelviewprojectionmatrix = glGetUniformLocation(gl.program, "modelviewprojectionMatrix");
@@ -376,9 +373,9 @@ printf("filenames[%d]: %s\n", i, fnames);
 	glBufferSubData(GL_ARRAY_BUFFER, gl.normalsoffset, sizeof(vNormals), &vNormals[0]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.positionsoffset);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.normalsoffset);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.texcoordsoffset);
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.texcoordsoffset);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)(intptr_t)gl.normalsoffset);
 	glEnableVertexAttribArray(2);
 
 	glGenTextures(1, &gl.tex);
