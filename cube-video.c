@@ -42,10 +42,10 @@ struct {
 	GLfloat aspect;
 	const struct gbm *gbm;
 
-	GLuint program;
+	GLuint program, blit_program;
 	/* uniform handles: */
 	GLint modelviewmatrix, modelviewprojectionmatrix, normalmatrix;
-	GLint texture;
+	GLint texture, blit_texture;
 	GLuint vbo;
 	GLuint positionsoffset, texcoordsoffset, normalsoffset;
 	GLuint tex;
@@ -157,6 +157,20 @@ static const GLfloat vNormals[] = {
 		+0.0f, -1.0f, +0.0f  // down
 };
 
+static const char *blit_vs =
+		"attribute vec4 in_position;        \n"
+		"attribute vec3 in_normal;          \n"
+		"attribute vec2 in_TexCoord;        \n"
+		"                                   \n"
+		"varying vec4 vVaryingColor;        \n"
+		"varying vec2 vTexCoord;            \n"
+		"                                   \n"
+		"void main()                        \n"
+		"{                                  \n"
+		"    gl_Position = in_position;     \n"
+		"    vTexCoord = in_TexCoord;       \n"
+		"}                                  \n";
+
 static const char *vertex_shader_source =
 		"uniform mat4 modelviewMatrix;      \n"
 		"uniform mat4 modelviewprojectionMatrix;\n"
@@ -225,6 +239,12 @@ static int draw_cube_video(unsigned i)
 	/* clear the color buffer */
 	glClearColor(0.5, 0.5, 0.5, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
+
+	glUseProgram(gl.blit_program);
+	glUniform1i(gl.blit_texture, 0); /* '0' refers to texture unit 0. */
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glUseProgram(gl.program);
 
 	esMatrixLoadIdentity(&modelview);
 	esTranslate(&modelview, 0.0f, 0.0f, -8.0f);
@@ -302,6 +322,24 @@ printf("filenames[%d]: %s\n", i, fnames);
 	gl.aspect = (GLfloat)(gbm->height) / (GLfloat)(gbm->width);
 	gl.gbm = gbm;
 
+	ret = create_program(blit_vs, fragment_shader_source);
+	if (ret < 0)
+		return NULL;
+
+	gl.blit_program = ret;
+
+	glBindAttribLocation(gl.blit_program, 0, "in_position");
+	glBindAttribLocation(gl.blit_program, 1, "in_normal");
+	glBindAttribLocation(gl.blit_program, 2, "in_TexCoord");
+
+	ret = link_program(gl.blit_program);
+	if (ret)
+		return NULL;
+
+	glUseProgram(gl.blit_program);
+
+	gl.blit_texture = glGetUniformLocation(gl.blit_program, "uTex");
+
 	ret = create_program(vertex_shader_source, fragment_shader_source);
 	if (ret < 0)
 		return NULL;
@@ -310,7 +348,7 @@ printf("filenames[%d]: %s\n", i, fnames);
 
 	glBindAttribLocation(gl.program, 0, "in_position");
 	glBindAttribLocation(gl.program, 1, "in_normal");
-	glBindAttribLocation(gl.program, 2, "in_color");
+	glBindAttribLocation(gl.program, 2, "in_TexCoord");
 
 	ret = link_program(gl.program);
 	if (ret)
