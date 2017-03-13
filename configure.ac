@@ -44,43 +44,5 @@ PKG_CHECK_MODULES(GBM, gbm)
 PKG_CHECK_MODULES(EGL, egl)
 PKG_CHECK_MODULES(GLES2, glesv2)
 
-dnl ===========================================================================
-dnl check compiler flags
-AC_DEFUN([LIBDRM_CC_TRY_FLAG], [
-	AC_MSG_CHECKING([whether $CC supports $1])
-
-	libdrm_save_CFLAGS="$CFLAGS"
-	CFLAGS="$CFLAGS $1"
-
-	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],[[]])],
-						[libdrm_cc_flag=yes],
-						[libdrm_cc_flag=no])
-	CFLAGS="$libdrm_save_CFLAGS"
-	
-	if test "x$libdrm_cc_flag" = "xyes"; then
-		ifelse([$2], , :, [$2])
-	else
-		ifelse([$3], , :, [$3])
-	fi
-	AC_MSG_RESULT([$libdrm_cc_flag])
-])
-
-MAYBE_WARN="-Wall -Wextra -Wno-packed-bitfield-compat \
--Wsign-compare -Werror-implicit-function-declaration \
--Wpointer-arith -Wwrite-strings -Wstrict-prototypes \
--Wnested-externs \
--Wpacked -Wswitch-enum -Wmissing-format-attribute \
--Wstrict-aliasing=2 -Winit-self -Wunsafe-loop-optimizations \
--Wdeclaration-after-statement -Wold-style-definition \
--Wno-missing-field-initializers -Wno-unused-parameter \
--Wno-attributes -Wno-long-long -Winline"
-
-AC_MSG_CHECKING([which warning flags were supported])
-for W in $MAYBE_WARN; do
-	LIBDRM_CC_TRY_FLAG([$W], [WARN_CFLAGS="$WARN_CFLAGS $W"])
-done
-
-AC_SUBST(WARN_CFLAGS)
-
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
