@@ -51,7 +51,8 @@ kmscube_SOURCES = \
 	drm.h \
 	drm-atomic.c \
 	drm-legacy.c \
+	esTransform.c \
+	esUtil.h \
 	frame-512x512-NV12.c \
 	frame-512x512-RGBA.c \
-	kmscube.c \
-	esTransform.c
+	kmscube.c
