@@ -24,8 +24,6 @@
 # Initialize Autoconf
 AC_PREREQ([2.60])
 AC_INIT([kmscube], [0.0.1], [https://cgit.freedesktop.org/mesa/kmscube/], [kmscube])
-AC_CONFIG_SRCDIR([Makefile.am])
-AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 
