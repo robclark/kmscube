@@ -21,6 +21,8 @@
 #  SOFTWARE.
 #
 
+ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
+
 bin_PROGRAMS = kmscube
 
 kmscube_LDFLAGS = \
