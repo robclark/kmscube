@@ -25,9 +25,6 @@ ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
 
 bin_PROGRAMS = kmscube
 
-kmscube_LDFLAGS = \
-	-no-undefined
-
 kmscube_LDADD = \
 	$(DRM_LIBS) \
 	$(GBM_LIBS) \

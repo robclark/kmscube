@@ -30,11 +30,10 @@ AC_CONFIG_MACRO_DIR([m4])
 # Initialize Automake
 AM_INIT_AUTOMAKE([foreign dist-bzip2])
 
+AC_PROG_CC
+
 # Enable quiet compiles on automake 1.11.
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-
-# Initialize libtool
-AC_PROG_LIBTOOL
 
 # Obtain compiler/linker options for depedencies
 PKG_CHECK_MODULES(DRM, libdrm)
