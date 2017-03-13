@@ -27,6 +27,9 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+struct gbm;
+struct egl;
+
 struct plane {
 	drmModePlane *plane;
 	drmModeObjectProperties *props;
