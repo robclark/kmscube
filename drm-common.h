@@ -21,8 +21,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _DRM_H
-#define _DRM_H
+#ifndef _DRM_COMMON_H
+#define _DRM_COMMON_H
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
@@ -74,4 +74,4 @@ int init_drm(struct drm *drm, const char *device);
 const struct drm * init_drm_legacy(const char *device);
 const struct drm * init_drm_atomic(const char *device);
 
-#endif /* _DRM_H */
+#endif /* _DRM_COMMON_H */

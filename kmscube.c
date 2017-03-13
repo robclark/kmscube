@@ -29,7 +29,7 @@
 #include <getopt.h>
 
 #include "common.h"
-#include "drm.h"
+#include "drm-common.h"
 
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))

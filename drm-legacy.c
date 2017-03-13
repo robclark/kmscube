@@ -26,7 +26,7 @@
 #include <string.h>
 
 #include "common.h"
-#include "drm.h"
+#include "drm-common.h"
 
 static struct drm drm;
 

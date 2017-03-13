@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 #include "common.h"
-#include "drm.h"
+#include "drm-common.h"
 
 #define VOID2U64(x) ((uint64_t)(unsigned long)(x))
 

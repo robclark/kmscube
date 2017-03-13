@@ -47,9 +47,9 @@ kmscube_SOURCES = \
 	common.h \
 	cube-smooth.c \
 	cube-tex.c \
-	drm.c \
-	drm.h \
 	drm-atomic.c \
+	drm-common.c \
+	drm-common.h \
 	drm-legacy.c \
 	esTransform.c \
 	esUtil.h \

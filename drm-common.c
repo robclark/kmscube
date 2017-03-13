@@ -28,7 +28,7 @@
 #include <string.h>
 
 #include "common.h"
-#include "drm.h"
+#include "drm-common.h"
 
 static void
 drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
