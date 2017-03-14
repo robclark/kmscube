@@ -362,7 +362,7 @@ const struct drm * init_drm_atomic(const char *device)
 	get_resource(connector, Connector, drm.connector_id);
 
 #define get_properties(type, TYPE, id) do {						\
-		int i;													\
+		uint32_t i;												\
 		drm.type->props = drmModeObjectGetProperties(drm.fd,	\
 				id, DRM_MODE_OBJECT_##TYPE);					\
 		if (!drm.type->props) {									\
