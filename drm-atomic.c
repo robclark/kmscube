@@ -108,7 +108,6 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 	drmModeAtomicReq *req;
 	uint32_t plane_id = drm.plane->plane->plane_id;
 	uint32_t blob_id;
-	unsigned int i;
 	int ret;
 
 	req = drmModeAtomicAlloc();
@@ -320,7 +319,7 @@ static int get_plane_id(void)
 const struct drm * init_drm_atomic(const char *device)
 {
 	uint32_t plane_id;
-	int i, ret;
+	int ret;
 
 	ret = init_drm(&drm, device);
 	if (ret)
