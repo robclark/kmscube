@@ -33,6 +33,9 @@ static struct drm drm;
 static void page_flip_handler(int fd, unsigned int frame,
 		  unsigned int sec, unsigned int usec, void *data)
 {
+	/* suppress 'unused parameter' warnings */
+	(void)fd, (void)frame, (void)sec, (void)usec;
+
 	int *waiting_for_flip = data;
 	*waiting_for_flip = 0;
 }
