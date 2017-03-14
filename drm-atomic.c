@@ -201,9 +201,6 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		struct gbm_bo *next_bo;
 		EGLSyncKHR gpu_fence = NULL;   /* out-fence from gpu, in-fence to kms */
 		EGLSyncKHR kms_fence = NULL;   /* in-fence to gpu, out-fence from kms */
-		int gpu_fence_fd, kms_fence_fd;  /* just for debugging */
-
-		kms_fence_fd = drm.kms_out_fence_fd;
 
 		if (drm.kms_out_fence_fd != -1) {
 			kms_fence = create_fence(egl, drm.kms_out_fence_fd);
@@ -233,7 +230,6 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		 * to get fd:
 		 */
 		drm.kms_in_fence_fd = egl->eglDupNativeFenceFDANDROID(egl->display, gpu_fence);
-		gpu_fence_fd = drm.kms_in_fence_fd;
 		egl->eglDestroySyncKHR(egl->display, gpu_fence);
 		assert(drm.kms_in_fence_fd != -1);
 
