@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 	const char *device = "/dev/dri/card0";
 	enum mode mode = SMOOTH;
 	int atomic = 0;
-	int opt, ret;
+	int opt;
 
 	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (opt) {
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 		drm = init_drm_legacy(device);
 	if (!drm) {
 		printf("failed to initialize %s DRM\n", atomic ? "atomic" : "legacy");
-		return ret;
+		return -1;
 	}
 
 	gbm = init_gbm(drm->fd, drm->mode->hdisplay, drm->mode->vdisplay);
