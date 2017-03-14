@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "drm-common.h"
@@ -54,7 +55,8 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	int ret;
 
 	FD_ZERO(&fds);
-	FD_SET(0, &fds);
+	if (!isatty(0))
+		FD_SET(0, &fds);
 	FD_SET(drm.fd, &fds);
 
 	eglSwapBuffers(egl->display, egl->surface);
