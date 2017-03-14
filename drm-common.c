@@ -35,7 +35,6 @@ drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
 {
 	int drm_fd = gbm_device_get_fd(gbm_bo_get_device(bo));
 	struct drm_fb *fb = data;
-	struct gbm_device *gbm = gbm_bo_get_device(bo);
 
 	if (fb->fb_id)
 		drmModeRmFB(drm_fd, fb->fb_id);
