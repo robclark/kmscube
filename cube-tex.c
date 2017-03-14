@@ -227,7 +227,7 @@ static int get_fd_rgba(uint32_t *pstride)
 
 	map = gbm_bo_map(bo, 0, 0, texw, texh, GBM_BO_TRANSFER_WRITE, &stride, &map_data);
 
-	for (int i = 0; i < texh; i++) {
+	for (uint32_t i = 0; i < texh; i++) {
 		memcpy(&map[stride * i], &src[texw * 4 * i], texw * 4);
 	}
 
@@ -258,7 +258,7 @@ static int get_fd_y(uint32_t *pstride)
 
 	map = gbm_bo_map(bo, 0, 0, texw/4, texh, GBM_BO_TRANSFER_WRITE, &stride, &map_data);
 
-	for (int i = 0; i < texh; i++) {
+	for (uint32_t i = 0; i < texh; i++) {
 		memcpy(&map[stride * i], &src[texw * i], texw);
 	}
 
@@ -289,7 +289,7 @@ static int get_fd_uv(uint32_t *pstride)
 
 	map = gbm_bo_map(bo, 0, 0, texw/2/2, texh/2, GBM_BO_TRANSFER_WRITE, &stride, &map_data);
 
-	for (int i = 0; i < texh/2; i++) {
+	for (uint32_t i = 0; i < texh/2; i++) {
 		memcpy(&map[stride * i], &src[texw * i], texw);
 	}
 
