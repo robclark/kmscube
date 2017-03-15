@@ -442,6 +442,9 @@ static int init_tex(enum mode mode)
 		return init_tex_nv12_2img();
 	case NV12_1IMG:
 		return init_tex_nv12_1img();
+	case SMOOTH:
+		assert(!"unreachable");
+		return -1;
 	}
 	return -1;
 }
