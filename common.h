@@ -24,6 +24,10 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <EGL/egl.h>
@@ -85,9 +89,24 @@ enum mode {
 	RGBA,          /* single-plane RGBA */
 	NV12_2IMG,     /* NV12, handled as two textures and converted to RGB in shader */
 	NV12_1IMG,     /* NV12, imported as planar YUV eglimg */
+	VIDEO,         /* video textured cube */
 };
 
 const struct egl * init_cube_smooth(const struct gbm *gbm);
 const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode);
+#ifdef HAVE_GST
+struct decoder;
+struct decoder * video_init(const struct egl *egl, const struct gbm *gbm, const char *filename);
+EGLImage video_frame(struct decoder *dec);
+void video_deinit(struct decoder *dec);
+const struct egl * init_cube_video(const struct gbm *gbm, const char *video);
+#else
+static inline const struct egl *
+init_cube_video(const struct gbm *gbm, const char *video)
+{
+	printf("no GStreamer support!\n");
+	return NULL;
+}
+#endif
 
 #endif /* _COMMON_H */

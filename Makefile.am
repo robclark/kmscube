@@ -56,3 +56,9 @@ kmscube_SOURCES = \
 	frame-512x512-NV12.c \
 	frame-512x512-RGBA.c \
 	kmscube.c
+
+if ENABLE_GST
+kmscube_LDADD += $(GST_LIBS)
+kmscube_CFLAGS += $(GST_CFLAGS)
+kmscube_SOURCES += cube-video.c gst-decoder.c
+endif
