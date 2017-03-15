@@ -31,6 +31,9 @@
 #include "common.h"
 #include "drm-common.h"
 
+#ifdef HAVE_GST
+#  include <gst/gst.h>
+#endif
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -38,12 +41,13 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:M:";
+static const char *shortopts = "AD:M:V:";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'M'},
 	{"device", required_argument, 0, 'D'},
 	{"mode",   required_argument, 0, 'M'},
+	{"video",  required_argument, 0, 'V'},
 	{0, 0, 0, 0}
 };
 
@@ -58,16 +62,22 @@ static void usage(const char *name)
 			"        smooth    -  smooth shaded cube (default)\n"
 			"        rgba      -  rgba textured cube\n"
 			"        nv12-2img -  yuv textured (color conversion in shader)\n"
-			"        nv12-1img -  yuv textured (single nv12 texture)\n",
+			"        nv12-1img -  yuv textured (single nv12 texture)\n"
+			"    -V, --video=FILE         video textured cube\n",
 			name);
 }
 
 int main(int argc, char *argv[])
 {
 	const char *device = "/dev/dri/card0";
+	const char *video = NULL;
 	enum mode mode = SMOOTH;
 	int atomic = 0;
 	int opt;
+
+#ifdef HAVE_GST
+	gst_init(&argc, &argv);
+#endif
 
 	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (opt) {
@@ -92,6 +102,10 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 			break;
+		case 'V':
+			mode = VIDEO;
+			video = optarg;
+			break;
 		default:
 			usage(argv[0]);
 			return -1;
@@ -115,6 +129,8 @@ int main(int argc, char *argv[])
 
 	if (mode == SMOOTH)
 		egl = init_cube_smooth(gbm);
+	else if (mode == VIDEO)
+		egl = init_cube_video(gbm, video);
 	else
 		egl = init_cube_tex(gbm, mode);
 

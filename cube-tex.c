@@ -46,7 +46,7 @@ struct {
 	GLuint tex[2];
 } gl;
 
-static const struct egl *egl = &gl.egl;
+const struct egl *egl = &gl.egl;
 
 static const GLfloat vVertices[] = {
 		// front
@@ -81,7 +81,7 @@ static const GLfloat vVertices[] = {
 		+1.0f, -1.0f, +1.0f,
 };
 
-static const GLfloat vTexCoords[] = {
+GLfloat vTexCoords[] = {
 		//front
 		1.0f, 1.0f,
 		0.0f, 1.0f,
@@ -443,6 +443,7 @@ static int init_tex(enum mode mode)
 	case NV12_1IMG:
 		return init_tex_nv12_1img();
 	case SMOOTH:
+	case VIDEO:
 		assert(!"unreachable");
 		return -1;
 	}
