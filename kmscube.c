@@ -113,11 +113,10 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	if (mode == SMOOTH) {
+	if (mode == SMOOTH)
 		egl = init_cube_smooth(gbm);
-	} else {
+	else
 		egl = init_cube_tex(gbm, mode);
-	}
 
 	if (!egl) {
 		printf("failed to initialize EGL\n");
