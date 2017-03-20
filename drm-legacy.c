@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/select.h>
 
 #include "common.h"
 #include "drm-common.h"
