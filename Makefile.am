@@ -33,6 +33,7 @@ kmscube_LDADD = \
 kmscube_CFLAGS = \
 	-O0 -g \
 	-Wall -Wextra \
+	-std=c99 \
 	$(DRM_CFLAGS) \
 	$(GBM_CFLAGS) \
 	$(EGL_CFLAGS) \
