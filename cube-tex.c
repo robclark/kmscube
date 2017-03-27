@@ -46,7 +46,7 @@ struct {
 	GLuint tex[2];
 } gl;
 
-const struct egl *egl = &gl.egl;
+static const struct egl *egl = &gl.egl;
 
 static const GLfloat vVertices[] = {
 		// front
@@ -81,7 +81,7 @@ static const GLfloat vVertices[] = {
 		+1.0f, -1.0f, +1.0f,
 };
 
-GLfloat vTexCoords[] = {
+static const GLfloat vTexCoords[] = {
 		//front
 		1.0f, 1.0f,
 		0.0f, 1.0f,
