@@ -45,7 +45,7 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 {
 	fd_set fds;
 	drmEventContext evctx = {
-			.version = DRM_EVENT_CONTEXT_VERSION,
+			.version = 2,
 			.page_flip_handler = page_flip_handler,
 	};
 	struct gbm_bo *bo;
