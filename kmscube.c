@@ -44,7 +44,7 @@ static const struct drm *drm;
 static const char *shortopts = "AD:M:V:";
 
 static const struct option longopts[] = {
-	{"atomic", no_argument,       0, 'M'},
+	{"atomic", no_argument,       0, 'A'},
 	{"device", required_argument, 0, 'D'},
 	{"mode",   required_argument, 0, 'M'},
 	{"video",  required_argument, 0, 'V'},
