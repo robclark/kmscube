@@ -156,6 +156,7 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 	get_proc_dpy(eglCreateSyncKHR, "EGL_KHR_fence_sync");
 	get_proc_dpy(eglDestroySyncKHR, "EGL_KHR_fence_sync");
 	get_proc_dpy(eglWaitSyncKHR, "EGL_KHR_fence_sync");
+	get_proc_dpy(eglClientWaitSyncKHR, "EGL_KHR_fence_sync");
 	get_proc_dpy(eglDupNativeFenceFDANDROID, "EGL_ANDROID_native_fence_sync");
 
 	printf("Using display %p with EGL version %d.%d\n",
