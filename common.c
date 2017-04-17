@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 Rob Clark <rclark@redhat.com>
+ * Copyright © 2013 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -23,6 +24,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,6 +80,26 @@ const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 	return &gbm;
 }
 
+static bool has_ext(const char *extension_list, const char *ext)
+{
+	const char *ptr = extension_list;
+	int len = strlen(ext);
+
+	if (ptr == NULL || *ptr == '\0')
+		return false;
+
+	while (true) {
+		ptr = strstr(ptr, ext);
+		if (!ptr)
+			return false;
+
+		if (ptr[len] == ' ' || ptr[len] == '\0')
+			return true;
+
+		ptr += len;
+	}
+}
+
 int init_egl(struct egl *egl, const struct gbm *gbm)
 {
 	EGLint major, minor, n;
@@ -96,19 +118,25 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 		EGL_NONE
 	};
+	const char *egl_exts_client, *egl_exts_dpy, *gl_exts;
 
-#define get_proc(name) do { \
-		egl->name = (void *)eglGetProcAddress(#name); \
+#define get_proc_client(name, ext) do { \
+		if (has_ext(egl_exts_client, ext)) \
+			egl->name = (void *)eglGetProcAddress(#name); \
+	} while (0)
+#define get_proc_dpy(name, ext) do { \
+		if (has_ext(egl_exts_dpy, ext)) \
+			egl->name = (void *)eglGetProcAddress(#name); \
 	} while (0)
 
-	get_proc(eglGetPlatformDisplayEXT);
-	get_proc(eglCreateImageKHR);
-	get_proc(eglDestroyImageKHR);
-	get_proc(glEGLImageTargetTexture2DOES);
-	get_proc(eglCreateSyncKHR);
-	get_proc(eglDestroySyncKHR);
-	get_proc(eglWaitSyncKHR);
-	get_proc(eglDupNativeFenceFDANDROID);
+#define get_proc_gl(name, ext) do { \
+		if (has_ext(gl_exts, ext)) \
+			egl->name = (void *)eglGetProcAddress(#name); \
+	} while (0)
+
+	egl_exts_client = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+	printf("EGL Client Extensions \"%s\"\n", egl_exts_client);
+	get_proc_client(eglGetPlatformDisplayEXT, "EGL_EXT_platform_base");
 
 	if (egl->eglGetPlatformDisplayEXT) {
 		egl->display = egl->eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR,
@@ -121,6 +149,14 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 		printf("failed to initialize\n");
 		return -1;
 	}
+
+	egl_exts_dpy = eglQueryString(egl->display, EGL_EXTENSIONS);
+	get_proc_dpy(eglCreateImageKHR, "EGL_KHR_image_base");
+	get_proc_dpy(eglDestroyImageKHR, "EGL_KHR_image_base");
+	get_proc_dpy(eglCreateSyncKHR, "EGL_KHR_fence_sync");
+	get_proc_dpy(eglDestroySyncKHR, "EGL_KHR_fence_sync");
+	get_proc_dpy(eglWaitSyncKHR, "EGL_KHR_fence_sync");
+	get_proc_dpy(eglDupNativeFenceFDANDROID, "EGL_ANDROID_native_fence_sync");
 
 	printf("Using display %p with EGL version %d.%d\n",
 			egl->display, major, minor);
@@ -166,6 +202,9 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 	printf("  renderer: \"%s\"\n", glGetString(GL_RENDERER));
 	printf("  extensions: \"%s\"\n", glGetString(GL_EXTENSIONS));
 	printf("===================================\n");
+
+	gl_exts = (const char *) glGetString(GL_EXTENSIONS);
+	get_proc_gl(glEGLImageTargetTexture2DOES, "GL_OES_EGL_image");
 
 	return 0;
 }
