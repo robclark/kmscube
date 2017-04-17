@@ -210,6 +210,7 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 
 		if (drm.kms_out_fence_fd != -1) {
 			kms_fence = create_fence(egl, drm.kms_out_fence_fd);
+			assert(kms_fence);
 
 			/* driver now has ownership of the fence fd: */
 			drm.kms_out_fence_fd = -1;
@@ -220,7 +221,6 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 			 * the buffer that is still on screen.
 			 */
 			egl->eglWaitSyncKHR(egl->display, kms_fence, 0);
-			egl->eglDestroySyncKHR(egl->display, kms_fence);
 		}
 
 		egl->draw(i++);
@@ -229,6 +229,7 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		 * signaled when gpu rendering done
 		 */
 		gpu_fence = create_fence(egl, EGL_NO_NATIVE_FENCE_FD_ANDROID);
+		assert(gpu_fence);
 
 		eglSwapBuffers(egl->display, egl->surface);
 
@@ -244,6 +245,24 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		if (!fb) {
 			printf("Failed to get a new framebuffer BO\n");
 			return -1;
+		}
+
+		if (kms_fence) {
+			EGLint status;
+
+			/* Wait on the CPU side for the _previous_ commit to
+			 * complete before we post the flip through KMS, as
+			 * atomic will reject the commit if we post a new one
+			 * whilst the previous one is still pending.
+			 */
+			do {
+				status = egl->eglClientWaitSyncKHR(egl->display,
+								   kms_fence,
+								   0,
+								   EGL_FOREVER_KHR);
+			} while (status != EGL_CONDITION_SATISFIED_KHR);
+
+			egl->eglDestroySyncKHR(egl->display, kms_fence);
 		}
 
 		/*
