@@ -39,6 +39,9 @@
 #include <gst/app/gstappsink.h>
 #include <gst/video/gstvideometa.h>
 
+GST_DEBUG_CATEGORY_EXTERN(kmscube_debug);
+#define GST_CAT_DEFAULT kmscube_debug
+
 struct decoder {
 	GMainLoop          *loop;
 	GstElement         *pipeline;

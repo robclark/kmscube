@@ -33,7 +33,8 @@
 #include "drm-common.h"
 
 #ifdef HAVE_GST
-#  include <gst/gst.h>
+#include <gst/gst.h>
+GST_DEBUG_CATEGORY(kmscube_debug);
 #endif
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
@@ -81,6 +82,7 @@ int main(int argc, char *argv[])
 
 #ifdef HAVE_GST
 	gst_init(&argc, &argv);
+	GST_DEBUG_CATEGORY_INIT(kmscube_debug, "kmscube", 0, "kmscube video pipeline");
 #endif
 
 	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
