@@ -63,24 +63,23 @@ static GstPadProbeReturn
 pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
 	struct decoder *dec = user_data;
-	GstQuery *query = GST_PAD_PROBE_INFO_QUERY(info);
-	gboolean need_pool;
+	GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
 	GstCaps *caps;
 
 	(void)pad;
 
-	if (GST_QUERY_TYPE(query) != GST_QUERY_ALLOCATION)
+	if (GST_EVENT_TYPE(event) != GST_EVENT_CAPS)
 		return GST_PAD_PROBE_OK;
 
-	gst_query_parse_allocation(query, &caps, &need_pool);
+	gst_event_parse_caps(event, &caps);
 
 	if (!caps) {
-		GST_ERROR("allocation query without caps");
+		GST_ERROR("caps event without caps");
 		return GST_PAD_PROBE_OK;
 	}
 
 	if (!gst_video_info_from_caps(&dec->info, caps)) {
-		GST_ERROR("allocation query with invalid caps");
+		GST_ERROR("caps event with invalid video caps");
 		return GST_PAD_PROBE_OK;
 	}
 
@@ -156,7 +155,7 @@ video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 	g_object_set(G_OBJECT(dec->sink), "max-buffers", 2, NULL);
 
 	gst_pad_add_probe(gst_element_get_static_pad(dec->sink, "sink"),
-			GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM,
+			GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
 			pad_probe, dec, NULL);
 
 	/* hack to make sure we get dmabuf's from v4l2video0dec.. */
