@@ -234,11 +234,26 @@ bus_watch_cb(GstBus *bus, GstMessage *msg, gpointer user_data)
 	return TRUE;
 }
 
+static GstPadProbeReturn
+appsink_query_cb(GstPad *pad G_GNUC_UNUSED, GstPadProbeInfo *info,
+	gpointer user_data G_GNUC_UNUSED)
+{
+	GstQuery *query = info->data;
+
+	if (GST_QUERY_TYPE (query) != GST_QUERY_ALLOCATION)
+	  return GST_PAD_PROBE_OK;
+
+	gst_query_add_allocation_meta(query, GST_VIDEO_META_API_TYPE, NULL);
+
+	return GST_PAD_PROBE_HANDLED;
+}
+
 struct decoder *
 video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 {
 	struct decoder *dec;
 	GstElement *src, *decodebin;
+	GstPad *pad;
 	GstBus *bus;
 
 	dec = calloc(1, sizeof(*dec));
@@ -252,6 +267,16 @@ video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 	dec->pipeline = gst_parse_launch(pipeline, NULL);
 
 	dec->sink = gst_bin_get_by_name(GST_BIN(dec->pipeline), "sink");
+
+	/* Implement the allocation query using a pad probe. This probe will
+	 * adverstize support for GstVideoMeta, which avoid hardware accelerated
+	 * decoder that produce special strides and offsets from having to
+	 * copy the buffers.
+	 */
+	pad = gst_element_get_static_pad(dec->sink, "sink");
+	gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM,
+		appsink_query_cb, NULL, NULL);
+	gst_object_unref(pad);
 
 	src = gst_bin_get_by_name(GST_BIN(dec->pipeline), "src");
 	g_object_set(G_OBJECT(src), "location", filename, NULL);
