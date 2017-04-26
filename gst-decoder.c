@@ -257,6 +257,10 @@ video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 	g_object_set(G_OBJECT(src), "location", filename, NULL);
 	gst_object_unref(src);
 
+	/* Configure the sink like a video sink (mimic GstVideoSink) */
+	gst_base_sink_set_max_lateness(GST_BASE_SINK(dec->sink), 20 * GST_MSECOND);
+	gst_base_sink_set_qos_enabled(GST_BASE_SINK(dec->sink), TRUE);
+
 	/* if we don't limit max-buffers then we can let the decoder outrun
 	 * vsync and quickly chew up 100's of MB of buffers:
 	 */
