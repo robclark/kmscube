@@ -125,9 +125,12 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 	printf("Using display %p with EGL version %d.%d\n",
 			egl->display, major, minor);
 
-	printf("EGL Version \"%s\"\n", eglQueryString(egl->display, EGL_VERSION));
-	printf("EGL Vendor \"%s\"\n", eglQueryString(egl->display, EGL_VENDOR));
-	printf("EGL Extensions \"%s\"\n", eglQueryString(egl->display, EGL_EXTENSIONS));
+	printf("===================================\n");
+	printf("EGL information:\n");
+	printf("  version: \"%s\"\n", eglQueryString(egl->display, EGL_VERSION));
+	printf("  vendor: \"%s\"\n", eglQueryString(egl->display, EGL_VENDOR));
+	printf("  extensions: \"%s\"\n", eglQueryString(egl->display, EGL_EXTENSIONS));
+	printf("===================================\n");
 
 	if (!eglBindAPI(EGL_OPENGL_ES_API)) {
 		printf("failed to bind api EGL_OPENGL_ES_API\n");
@@ -156,7 +159,13 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 	/* connect the context to the surface */
 	eglMakeCurrent(egl->display, egl->surface, egl->surface, egl->context);
 
-	printf("GL Extensions: \"%s\"\n", glGetString(GL_EXTENSIONS));
+	printf("OpenGL ES 2.x information:\n");
+	printf("  version: \"%s\"\n", glGetString(GL_VERSION));
+	printf("  shading language version: \"%s\"\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	printf("  vendor: \"%s\"\n", glGetString(GL_VENDOR));
+	printf("  renderer: \"%s\"\n", glGetString(GL_RENDERER));
+	printf("  extensions: \"%s\"\n", glGetString(GL_EXTENSIONS));
+	printf("===================================\n");
 
 	return 0;
 }
