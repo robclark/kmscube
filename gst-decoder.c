@@ -42,6 +42,8 @@
 GST_DEBUG_CATEGORY_EXTERN(kmscube_debug);
 #define GST_CAT_DEFAULT kmscube_debug
 
+#define MAX_NUM_PLANES 3
+
 struct decoder {
 	GMainLoop          *loop;
 	GstElement         *pipeline;
@@ -83,7 +85,7 @@ pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 		return GST_PAD_PROBE_OK;
 	}
 
-	switch (dec->info.finfo->format) {
+	switch (GST_VIDEO_INFO_FORMAT(&(dec->info))) {
 	case GST_VIDEO_FORMAT_I420:
 		dec->format = DRM_FORMAT_YUV420;
 		break;
@@ -264,7 +266,7 @@ video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 			GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
 			pad_probe, dec, NULL);
 
-	/* hack to make sure we get dmabuf's from v4l2video0dec.. */
+	/* callback needed to make sure we get dmabuf's from v4l2videoNdec.. */
 	decodebin = gst_bin_get_by_name(GST_BIN(dec->pipeline), "decode");
 	g_signal_connect(decodebin, "element-added", G_CALLBACK(element_added_cb), dec);
 
@@ -322,7 +324,7 @@ buf_to_fd(const struct gbm *gbm, int size, void *ptr)
 static EGLImage
 buffer_to_image(struct decoder *dec, GstBuffer *buf)
 {
-	struct { int fd, offset, stride; } planes[3];
+	struct { int fd, offset, stride; } planes[MAX_NUM_PLANES];
 	GstVideoMeta *meta = gst_buffer_get_video_meta(buf);
 	EGLImage image;
 	unsigned nmems = gst_buffer_n_memory(buf);
@@ -412,6 +414,7 @@ buffer_to_image(struct decoder *dec, GstBuffer *buf)
 				EGL_LINUX_DMA_BUF_EXT, NULL, attr);
 	}
 
+	/* Cleanup */
 	for (unsigned i = 0; i < nmems; i++)
 		close(planes[i].fd);
 
@@ -426,8 +429,10 @@ video_frame(struct decoder *dec)
 	EGLImage   frame = NULL;
 
 	samp = gst_app_sink_pull_sample(GST_APP_SINK(dec->sink));
-	if (!samp)
+	if (!samp) {
+		GST_DEBUG("got no appsink sample");
 		return NULL;
+	}
 
 	buf = gst_sample_get_buffer(samp);
 
