@@ -136,11 +136,108 @@ element_added_cb(GstBin *bin, GstElement *element, gpointer user_data)
 	}
 }
 
+static gboolean
+bus_watch_cb(GstBus *bus, GstMessage *msg, gpointer user_data)
+{
+	struct decoder *dec = (struct decoder *)user_data;
+
+	(void)bus;
+
+	switch (GST_MESSAGE_TYPE(msg)) {
+	case GST_MESSAGE_STATE_CHANGED: {
+		gchar *dotfilename;
+		GstState old_gst_state, cur_gst_state, pending_gst_state;
+
+		/* Only consider state change messages coming from
+		 * the toplevel element. */
+		if (GST_MESSAGE_SRC(msg) != GST_OBJECT(dec->pipeline))
+			break;
+
+		gst_message_parse_state_changed(msg, &old_gst_state, &cur_gst_state, &pending_gst_state);
+
+		printf(
+			"GStreamer state change:  old: %s  current: %s  pending: %s\n",
+			gst_element_state_get_name(old_gst_state),
+			gst_element_state_get_name(cur_gst_state),
+			gst_element_state_get_name(pending_gst_state)
+		);
+
+		dotfilename = g_strdup_printf(
+			"statechange__old-%s__cur-%s__pending-%s",
+			gst_element_state_get_name(old_gst_state),
+			gst_element_state_get_name(cur_gst_state),
+			gst_element_state_get_name(pending_gst_state)
+		);
+		GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(dec->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, dotfilename);
+		g_free(dotfilename);
+
+		break;
+	}
+	case GST_MESSAGE_REQUEST_STATE: {
+		GstState requested_state;
+		gst_message_parse_request_state(msg, &requested_state);
+		printf(
+			"state change to %s was requested by %s\n",
+			gst_element_state_get_name(requested_state),
+			GST_MESSAGE_SRC_NAME(msg)
+		);
+		gst_element_set_state(GST_ELEMENT(dec->pipeline), requested_state);
+		break;
+	}
+	case GST_MESSAGE_LATENCY: {
+		printf("redistributing latency\n");
+		gst_bin_recalculate_latency(GST_BIN(dec->pipeline));
+		break;
+	}
+	case GST_MESSAGE_INFO:
+	case GST_MESSAGE_WARNING:
+	case GST_MESSAGE_ERROR: {
+		GError *error = NULL;
+		gchar *debug_info = NULL;
+		gchar const *prefix;
+
+		switch (GST_MESSAGE_TYPE(msg)) {
+			case GST_MESSAGE_INFO:
+				gst_message_parse_info(msg, &error, &debug_info);
+				prefix = "INFO";
+				break;
+			case GST_MESSAGE_WARNING:
+				gst_message_parse_warning(msg, &error, &debug_info);
+				prefix = "WARNING";
+				break;
+			case GST_MESSAGE_ERROR:
+				gst_message_parse_error(msg, &error, &debug_info);
+				prefix = "ERROR";
+				break;
+			default:
+				g_assert_not_reached();
+		}
+		printf("GStreamer %s: %s; debug info: %s", prefix, error->message, debug_info);
+
+		g_clear_error(&error);
+		g_free(debug_info);
+
+		if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
+			GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(dec->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "error");
+		}
+
+		// TODO: stop mainloop in case of an error
+
+		break;
+	}
+	default:
+		break;
+	}
+
+	return TRUE;
+}
+
 struct decoder *
 video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 {
 	struct decoder *dec;
 	GstElement *src, *decodebin;
+	GstBus *bus;
 
 	dec = calloc(1, sizeof(*dec));
 	dec->loop = g_main_loop_new(NULL, FALSE);
@@ -170,6 +267,12 @@ video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 	/* hack to make sure we get dmabuf's from v4l2video0dec.. */
 	decodebin = gst_bin_get_by_name(GST_BIN(dec->pipeline), "decode");
 	g_signal_connect(decodebin, "element-added", G_CALLBACK(element_added_cb), dec);
+
+	/* add bus to be able to receive error message, handle latency
+	 * requests, produce pipeline dumps, etc. */
+	bus = gst_pipeline_get_bus(GST_PIPELINE(dec->pipeline));
+	gst_bus_add_watch(bus, bus_watch_cb, dec);
+	gst_object_unref(GST_OBJECT(bus));
 
 	/* let 'er rip! */
 	gst_element_set_state(dec->pipeline, GST_STATE_PLAYING);
