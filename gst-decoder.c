@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 Rob Clark <rclark@redhat.com>
+ * Copyright (c) 2017 Carlos Rafael Giani <dv@pseudoterminal.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -43,6 +44,12 @@ GST_DEBUG_CATEGORY_EXTERN(kmscube_debug);
 #define GST_CAT_DEFAULT kmscube_debug
 
 #define MAX_NUM_PLANES 3
+
+inline static const char *
+yesno(int yes)
+{
+	return yes ? "yes" : "no";
+}
 
 struct decoder {
 	GMainLoop          *loop;
@@ -99,9 +106,6 @@ pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 		GST_ERROR("unknown format\n");
 		return GST_PAD_PROBE_OK;
 	}
-
-	GST_DEBUG("got: %ux%u@%4.4s\n", dec->info.width, dec->info.height,
-			(char *)&dec->format);
 
 	return GST_PAD_PROBE_OK;
 }
@@ -356,88 +360,126 @@ buffer_to_image(struct decoder *dec, GstBuffer *buf)
 	struct { int fd, offset, stride; } planes[MAX_NUM_PLANES];
 	GstVideoMeta *meta = gst_buffer_get_video_meta(buf);
 	EGLImage image;
-	unsigned nmems = gst_buffer_n_memory(buf);
-	unsigned nplanes = (dec->format == DRM_FORMAT_YUV420) ? 3 : 2;
-	unsigned i;
+	guint nmems = gst_buffer_n_memory(buf);
+	guint nplanes = GST_VIDEO_INFO_N_PLANES(&(dec->info));
+	guint i;
+	guint width, height;
+	gboolean is_dmabuf_mem;
+	GstMemory *mem;
+	int dmabuf_fd = -1;
 
-	if (nmems == nplanes) {
-		// XXX TODO..
-	} else if (nmems == 1) {
-		GstMemory *mem = gst_buffer_peek_memory(buf, 0);
-		int fd;
+	static const EGLint egl_dmabuf_plane_fd_attr[MAX_NUM_PLANES] = {
+		EGL_DMA_BUF_PLANE0_FD_EXT,
+		EGL_DMA_BUF_PLANE1_FD_EXT,
+		EGL_DMA_BUF_PLANE2_FD_EXT,
+	};
+	static const EGLint egl_dmabuf_plane_offset_attr[MAX_NUM_PLANES] = {
+		EGL_DMA_BUF_PLANE0_OFFSET_EXT,
+		EGL_DMA_BUF_PLANE1_OFFSET_EXT,
+		EGL_DMA_BUF_PLANE2_OFFSET_EXT,
+	};
+	static const EGLint egl_dmabuf_plane_pitch_attr[MAX_NUM_PLANES] = {
+		EGL_DMA_BUF_PLANE0_PITCH_EXT,
+		EGL_DMA_BUF_PLANE1_PITCH_EXT,
+		EGL_DMA_BUF_PLANE2_PITCH_EXT,
+	};
 
-		if (dec->frame == 0) {
-			printf("%s zero-copy\n", gst_is_dmabuf_memory(mem) ? "using" : "not");
+	/* Query gst_is_dmabuf_memory() here, since the gstmemory
+	 * block might get merged below by gst_buffer_map(), meaning
+	 * that the mem pointer would become invalid */
+	mem = gst_buffer_peek_memory(buf, 0);
+	is_dmabuf_mem = gst_is_dmabuf_memory(mem);
+
+	if (nmems > 1) {
+		if (is_dmabuf_mem) {
+			/* this case currently is not defined */
+
+			GST_FIXME("gstbuffers with multiple memory blocks and DMABUF "
+			          "memory currently are not supported");
+			return EGL_NO_IMAGE_KHR;
 		}
 
-		if (gst_is_dmabuf_memory(mem)) {
-			fd = dup(gst_dmabuf_memory_get_fd(mem));
-		} else {
-			GstMapInfo info;
-			gst_memory_map(mem, &info, GST_MAP_READ);
-			fd = buf_to_fd(dec->gbm, info.size, info.data);
-			gst_memory_unmap(mem, &info);
+		/* if this is not DMABUF memory, then the gst_buffer_map()
+		 * call below will automatically merge the memory blocks
+		 */
+	}
+
+	if (is_dmabuf_mem) {
+		dmabuf_fd = dup(gst_dmabuf_memory_get_fd(mem));
+	} else {
+		GstMapInfo map_info;
+		gst_buffer_map(buf, &map_info, GST_MAP_READ);
+		dmabuf_fd = buf_to_fd(dec->gbm, map_info.size, map_info.data);
+		gst_buffer_unmap(buf, &map_info);
+	}
+
+	if (dmabuf_fd < 0) {
+		GST_ERROR("could not obtain DMABUF FD");
+		return EGL_NO_IMAGE_KHR;
+	}
+
+	/* Usually, a videometa should be present, since by using the internal kmscube
+	 * video_appsink element instead of the regular appsink, it is guaranteed that
+	 * video meta support is declared in the video_appsink's allocation query.
+	 * However, this assumes that upstream elements actually look at the allocation
+	 * query's contents properly, or that they even send a query at all. If this
+	 * is not the case, then upstream might decide to push frames without adding
+	 * a meta. It can happen, and in this case, look at the video info data as
+	 * a fallback (it is computed out of the input caps).
+	 */
+	if (meta) {
+		for (i = 0; i < nplanes; i++) {
+			planes[i].fd = dmabuf_fd;
+			planes[i].offset = meta->offset[i];
+			planes[i].stride = meta->stride[i];
 		}
-
-		// XXX why don't we get meta??
-		if (meta) {
-			for (i = 0; i < nplanes; i++) {
-				planes[i].fd = fd;
-				planes[i].offset = meta->offset[i];
-				planes[i].stride = meta->stride[i];
-			}
-		} else {
-			int offset = 0, stride = dec->info.width, height = dec->info.height;
-
-			for (i = 0; i < nplanes; i++) {
-
-				if (i == 1) {
-					height /= 2;
-					if (nplanes == 3)
-						stride /= 2;
-				}
-
-				planes[i].fd = fd;
-				planes[i].offset = offset;
-				planes[i].stride = stride;
-
-				offset += stride * height;
-			}
+	} else {
+		for (i = 0; i < nplanes; i++) {
+			planes[i].fd = dmabuf_fd;
+			planes[i].offset = GST_VIDEO_INFO_PLANE_OFFSET(&(dec->info), i);
+			planes[i].stride = GST_VIDEO_INFO_PLANE_STRIDE(&(dec->info), i);
 		}
 	}
 
-	if (dec->format == DRM_FORMAT_NV12) {
-		const EGLint attr[] = {
-			EGL_WIDTH, dec->info.width,
-			EGL_HEIGHT, dec->info.height,
-			EGL_LINUX_DRM_FOURCC_EXT, dec->format,
-			EGL_DMA_BUF_PLANE0_FD_EXT, planes[0].fd,
-			EGL_DMA_BUF_PLANE0_OFFSET_EXT, planes[0].offset,
-			EGL_DMA_BUF_PLANE0_PITCH_EXT, planes[0].stride,
-			EGL_DMA_BUF_PLANE1_FD_EXT, planes[1].fd,
-			EGL_DMA_BUF_PLANE1_OFFSET_EXT, planes[1].offset,
-			EGL_DMA_BUF_PLANE1_PITCH_EXT, planes[1].stride,
-			EGL_NONE
+	width = GST_VIDEO_INFO_WIDTH(&(dec->info));
+	height = GST_VIDEO_INFO_HEIGHT(&(dec->info));
+
+	/* output some information at the beginning (= when the first frame is handled) */
+	if (dec->frame == 0) {
+		GstVideoFormat pixfmt;
+		const char *pixfmt_str;
+
+		pixfmt = GST_VIDEO_INFO_FORMAT(&(dec->info));
+		pixfmt_str = gst_video_format_to_string(pixfmt);
+
+		printf("===================================\n");
+		printf("GStreamer video stream information:\n");
+		printf("  size: %u x %u pixel\n", width, height);
+		printf("  pixel format: %s  number of planes: %u\n", pixfmt_str, nplanes);
+		printf("  can use zero-copy: %s\n", yesno(is_dmabuf_mem));
+		printf("  video meta found: %s\n", yesno(meta != NULL));
+		printf("===================================\n");
+	}
+
+	{
+		/* Initialize the first 6 attributes with values that are
+		 * plane invariant (width, height, format) */
+		EGLint attr[6 + 6*(MAX_NUM_PLANES) + 1] = {
+			EGL_WIDTH, width,
+			EGL_HEIGHT, height,
+			EGL_LINUX_DRM_FOURCC_EXT, dec->format
 		};
 
-		image = dec->egl->eglCreateImageKHR(dec->egl->display, EGL_NO_CONTEXT,
-				EGL_LINUX_DMA_BUF_EXT, NULL, attr);
-	} else {
-		const EGLint attr[] = {
-			EGL_WIDTH, dec->info.width,
-			EGL_HEIGHT, dec->info.height,
-			EGL_LINUX_DRM_FOURCC_EXT, dec->format,
-			EGL_DMA_BUF_PLANE0_FD_EXT, planes[0].fd,
-			EGL_DMA_BUF_PLANE0_OFFSET_EXT, planes[0].offset,
-			EGL_DMA_BUF_PLANE0_PITCH_EXT, planes[0].stride,
-			EGL_DMA_BUF_PLANE1_FD_EXT, planes[1].fd,
-			EGL_DMA_BUF_PLANE1_OFFSET_EXT, planes[1].offset,
-			EGL_DMA_BUF_PLANE1_PITCH_EXT, planes[1].stride,
-			EGL_DMA_BUF_PLANE2_FD_EXT, planes[2].fd,
-			EGL_DMA_BUF_PLANE2_OFFSET_EXT, planes[2].offset,
-			EGL_DMA_BUF_PLANE2_PITCH_EXT, planes[2].stride,
-			EGL_NONE
-		};
+		for (i = 0; i < nplanes; i++) {
+			attr[6 + 6*i + 0] = egl_dmabuf_plane_fd_attr[i];
+			attr[6 + 6*i + 1] = planes[i].fd;
+			attr[6 + 6*i + 2] = egl_dmabuf_plane_offset_attr[i];
+			attr[6 + 6*i + 3] = planes[i].offset;
+			attr[6 + 6*i + 4] = egl_dmabuf_plane_pitch_attr[i];
+			attr[6 + 6*i + 5] = planes[i].stride;
+		}
+
+		attr[6 + 6*nplanes] = EGL_NONE;
 
 		image = dec->egl->eglCreateImageKHR(dec->egl->display, EGL_NO_CONTEXT,
 				EGL_LINUX_DMA_BUF_EXT, NULL, attr);
