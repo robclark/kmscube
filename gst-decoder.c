@@ -91,6 +91,9 @@ pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 	case GST_VIDEO_FORMAT_NV12:
 		dec->format = DRM_FORMAT_NV12;
 		break;
+	case GST_VIDEO_FORMAT_YUY2:
+		dec->format = DRM_FORMAT_YUYV;
+		break;
 	default:
 		GST_ERROR("unknown format\n");
 		return GST_PAD_PROBE_OK;
