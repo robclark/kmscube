@@ -61,7 +61,7 @@ if test "x$enable_gbm_modifiers" = xyes -a "x$gbm_modifiers" != xyes; then
 	AC_MSG_ERROR([Cannot find gbm modifier supported mesa])
 fi
 
-if test "x$gbm_modifiers" = xyes; then
+if test "x$enable_gbm_modifiers" = xyes; then
 	AC_DEFINE(HAVE_GBM_MODIFIERS, 1, [Define if you can use GBM properties.])
 fi
 
