@@ -33,8 +33,9 @@
 
 #define VOID2U64(x) ((uint64_t)(unsigned long)(x))
 
-static struct drm drm;
-
+static struct drm drm = {
+	.kms_out_fence_fd = -1,
+};
 
 static int add_connector_property(drmModeAtomicReq *req, uint32_t obj_id,
 					const char *name, uint64_t value)
