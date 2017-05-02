@@ -227,6 +227,10 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		assert(drm.kms_in_fence_fd != -1);
 
 		next_bo = gbm_surface_lock_front_buffer(gbm->surface);
+		if (!next_bo) {
+			printf("Failed to lock frontbuffer\n");
+			return -1;
+		}
 		fb = drm_fb_get_from_bo(next_bo);
 		if (!fb) {
 			printf("Failed to get a new framebuffer BO\n");
