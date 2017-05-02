@@ -175,9 +175,10 @@ static EGLSyncKHR create_fence(const struct egl *egl, int fd)
 
 static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 {
-	struct gbm_bo *bo;
+	struct gbm_bo *bo = NULL;
 	struct drm_fb *fb;
 	uint32_t i = 0;
+	uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK;
 	int ret;
 
 	if (!egl->eglDupNativeFenceFDANDROID) {
@@ -185,23 +186,8 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		return -1;
 	}
 
-	eglSwapBuffers(egl->display, egl->surface);
-	bo = gbm_surface_lock_front_buffer(gbm->surface);
-	fb = drm_fb_get_from_bo(bo);
-	if (!fb) {
-		printf("Failed to get a new framebuffer BO\n");
-		return -1;
-	}
-
-
-	drm.kms_in_fence_fd = -1;
-
-	/* set mode: */
-	ret = drm_atomic_commit(fb->fb_id, DRM_MODE_ATOMIC_ALLOW_MODESET);
-	if (ret) {
-		printf("failed to commit modeset: %s\n", strerror(errno));
-		return ret;
-	}
+	/* Allow a modeset change for the first commit only. */
+	flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
 
 	while (1) {
 		struct gbm_bo *next_bo;
@@ -269,15 +255,19 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		 * Here you could also update drm plane layers if you want
 		 * hw composition
 		 */
-		ret = drm_atomic_commit(fb->fb_id, DRM_MODE_ATOMIC_NONBLOCK);
+		ret = drm_atomic_commit(fb->fb_id, flags);
 		if (ret) {
 			printf("failed to commit: %s\n", strerror(errno));
 			return -1;
 		}
 
 		/* release last buffer to render on again: */
-		gbm_surface_release_buffer(gbm->surface, bo);
+		if (bo)
+			gbm_surface_release_buffer(gbm->surface, bo);
 		bo = next_bo;
+
+		/* Allow a modeset change for the first commit only. */
+		flags &= ~(DRM_MODE_ATOMIC_ALLOW_MODESET);
 	}
 
 	return ret;
