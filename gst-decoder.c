@@ -260,6 +260,10 @@ video_init(const struct egl *egl, const struct gbm *gbm, const char *filename)
 	GstPad *pad;
 	GstBus *bus;
 
+	if (egl_check(egl, eglCreateImageKHR) ||
+	    egl_check(egl, eglDestroyImageKHR))
+		return NULL;
+
 	dec = calloc(1, sizeof(*dec));
 	dec->loop = g_main_loop_new(NULL, FALSE);
 	dec->gbm = gbm;

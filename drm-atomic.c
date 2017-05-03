@@ -180,10 +180,12 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 	uint32_t i = 0;
 	int ret;
 
-	if (!egl->eglDupNativeFenceFDANDROID) {
-		printf("no eglDupNativeFenceFDANDROID\n");
+	if (egl_check(egl, eglDupNativeFenceFDANDROID) ||
+	    egl_check(egl, eglCreateSyncKHR) ||
+	    egl_check(egl, eglDestroySyncKHR) ||
+	    egl_check(egl, eglWaitSyncKHR) ||
+	    egl_check(egl, eglClientWaitSyncKHR))
 		return -1;
-	}
 
 	eglSwapBuffers(egl->display, egl->surface);
 	bo = gbm_surface_lock_front_buffer(gbm->surface);

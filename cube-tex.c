@@ -507,10 +507,10 @@ const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode)
 	if (ret)
 		return NULL;
 
-	if (!gl.egl.eglCreateImageKHR) {
-		printf("no eglCreateImageKHR\n");
+	if (egl_check(&gl.egl, eglCreateImageKHR) ||
+	    egl_check(&gl.egl, glEGLImageTargetTexture2DOES) ||
+	    egl_check(&gl.egl, eglDestroyImageKHR))
 		return NULL;
-	}
 
 	gl.aspect = (GLfloat)(gbm->height) / (GLfloat)(gbm->width);
 	gl.mode = mode;
