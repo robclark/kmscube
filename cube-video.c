@@ -300,10 +300,8 @@ const struct egl * init_cube_video(const struct gbm *gbm, const char *filenames)
 	if (ret)
 		return NULL;
 
-	if (!gl.egl.eglCreateImageKHR) {
-		printf("no eglCreateImageKHR\n");
+	if (egl_check(&gl.egl, glEGLImageTargetTexture2DOES))
 		return NULL;
-	}
 
 	fnames = strdup(filenames);
 	while ((s = strstr(fnames, ","))) {

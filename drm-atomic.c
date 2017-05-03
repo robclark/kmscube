@@ -181,10 +181,12 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 	uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK;
 	int ret;
 
-	if (!egl->eglDupNativeFenceFDANDROID) {
-		printf("no eglDupNativeFenceFDANDROID\n");
+	if (egl_check(egl, eglDupNativeFenceFDANDROID) ||
+	    egl_check(egl, eglCreateSyncKHR) ||
+	    egl_check(egl, eglDestroySyncKHR) ||
+	    egl_check(egl, eglWaitSyncKHR) ||
+	    egl_check(egl, eglClientWaitSyncKHR))
 		return -1;
-	}
 
 	/* Allow a modeset change for the first commit only. */
 	flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
