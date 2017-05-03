@@ -49,6 +49,8 @@ struct {
 	struct decoder *decoder;
 	int filenames_count, idx;
 	const char *filenames[32];
+
+	EGLSyncKHR last_fence;
 } gl;
 
 static const struct egl *egl = &gl.egl;
@@ -223,6 +225,12 @@ static void draw_cube_video(unsigned i)
 	ESMatrix modelview;
 	EGLImage frame;
 
+	if (gl.last_fence) {
+		egl->eglClientWaitSyncKHR(egl->display, gl.last_fence, 0, EGL_FOREVER_KHR);
+		egl->eglDestroySyncKHR(egl->display, gl.last_fence);
+		gl.last_fence = NULL;
+	}
+
 	frame = video_frame(gl.decoder);
 	if (!frame) {
 		/* end of stream */
@@ -289,6 +297,8 @@ static void draw_cube_video(unsigned i)
 	glDrawArrays(GL_TRIANGLE_STRIP, 12, 4);
 	glDrawArrays(GL_TRIANGLE_STRIP, 16, 4);
 	glDrawArrays(GL_TRIANGLE_STRIP, 20, 4);
+
+	gl.last_fence = egl->eglCreateSyncKHR(egl->display, EGL_SYNC_FENCE_KHR, NULL);
 }
 
 const struct egl * init_cube_video(const struct gbm *gbm, const char *filenames)
@@ -300,7 +310,10 @@ const struct egl * init_cube_video(const struct gbm *gbm, const char *filenames)
 	if (ret)
 		return NULL;
 
-	if (egl_check(&gl.egl, glEGLImageTargetTexture2DOES))
+	if (egl_check(&gl.egl, glEGLImageTargetTexture2DOES) ||
+	    egl_check(egl, eglCreateSyncKHR) ||
+	    egl_check(egl, eglDestroySyncKHR) ||
+	    egl_check(egl, eglClientWaitSyncKHR))
 		return NULL;
 
 	fnames = strdup(filenames);
