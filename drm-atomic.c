@@ -367,35 +367,34 @@ const struct drm * init_drm_atomic(const char *device)
 	drm.connector = calloc(1, sizeof(*drm.connector));
 
 #define get_resource(type, Type, id) do { 					\
-		drm.type->type = drmModeGet##Type(drm.fd, id);		\
-		if (!drm.type->type) {								\
-			printf("could not get %s %i: %s\n",				\
-					#type, id, strerror(errno));			\
-			return NULL;									\
-		}													\
+		drm.type->type = drmModeGet##Type(drm.fd, id);			\
+		if (!drm.type->type) {						\
+			printf("could not get %s %i: %s\n",			\
+					#type, id, strerror(errno));		\
+			return NULL;						\
+		}								\
 	} while (0)
 
 	get_resource(plane, Plane, plane_id);
 	get_resource(crtc, Crtc, drm.crtc_id);
 	get_resource(connector, Connector, drm.connector_id);
 
-#define get_properties(type, TYPE, id) do {						\
-		uint32_t i;												\
-		drm.type->props = drmModeObjectGetProperties(drm.fd,	\
-				id, DRM_MODE_OBJECT_##TYPE);					\
-		if (!drm.type->props) {									\
-			printf("could not get %s %u properties: %s\n",		\
-					#type, id, strerror(errno));				\
-			return NULL;										\
-		}														\
-		drm.type->props_info = calloc(drm.type->props->count_props, \
-				sizeof(drm.type->props_info));					\
-		for (i = 0; i < drm.type->props->count_props; i++) {	\
-			drm.type->props_info[i] = drmModeGetProperty(drm.fd,\
-					drm.type->props->props[i]);					\
-		}														\
+#define get_properties(type, TYPE, id) do {					\
+		uint32_t i;							\
+		drm.type->props = drmModeObjectGetProperties(drm.fd,		\
+				id, DRM_MODE_OBJECT_##TYPE);			\
+		if (!drm.type->props) {						\
+			printf("could not get %s %u properties: %s\n", 		\
+					#type, id, strerror(errno));		\
+			return NULL;						\
+		}								\
+		drm.type->props_info = calloc(drm.type->props->count_props,	\
+				sizeof(drm.type->props_info));			\
+		for (i = 0; i < drm.type->props->count_props; i++) {		\
+			drm.type->props_info[i] = drmModeGetProperty(drm.fd,	\
+					drm.type->props->props[i]);		\
+		}								\
 	} while (0)
-
 
 	get_properties(plane, PLANE, plane_id);
 	get_properties(crtc, CRTC, drm.crtc_id);
