@@ -22,6 +22,7 @@
  */
 
 #include <errno.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,7 +74,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 
 	if (modifiers[0]) {
 		flags = DRM_MODE_FB_MODIFIERS;
-		printf("Using modifier %llx\n", modifiers[0]);
+		printf("Using modifier %" PRIx64 "\n", modifiers[0]);
 	}
 
 	ret = drmModeAddFB2WithModifiers(drm_fd, width, height,
