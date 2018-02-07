@@ -53,10 +53,6 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	uint32_t i = 0;
 	int ret;
 
-	FD_ZERO(&fds);
-	FD_SET(0, &fds);
-	FD_SET(drm.fd, &fds);
-
 	eglSwapBuffers(egl->display, egl->surface);
 	bo = gbm_surface_lock_front_buffer(gbm->surface);
 	fb = drm_fb_get_from_bo(bo);
@@ -100,6 +96,10 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 		}
 
 		while (waiting_for_flip) {
+			FD_ZERO(&fds);
+			FD_SET(0, &fds);
+			FD_SET(drm.fd, &fds);
+
 			ret = select(drm.fd + 1, &fds, NULL, NULL, NULL);
 			if (ret < 0) {
 				printf("select err: %s\n", strerror(errno));
@@ -109,7 +109,7 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 				return -1;
 			} else if (FD_ISSET(0, &fds)) {
 				printf("user interrupted!\n");
-				break;
+				return 0;
 			}
 			drmHandleEvent(drm.fd, &evctx);
 		}
