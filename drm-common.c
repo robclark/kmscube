@@ -47,7 +47,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 {
 	int drm_fd = gbm_device_get_fd(gbm_bo_get_device(bo));
 	struct drm_fb *fb = gbm_bo_get_user_data(bo);
-	uint32_t width, height,
+	uint32_t width, height, format,
 		 strides[4] = {0}, handles[4] = {0},
 		 offsets[4] = {0}, flags = 0;
 	int ret = -1;
@@ -60,6 +60,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 
 	width = gbm_bo_get_width(bo);
 	height = gbm_bo_get_height(bo);
+	format = gbm_bo_get_format(bo);
 
 #ifdef HAVE_GBM_MODIFIERS
 	uint64_t modifiers[4] = {0};
@@ -78,7 +79,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 	}
 
 	ret = drmModeAddFB2WithModifiers(drm_fd, width, height,
-			DRM_FORMAT_XRGB8888, handles, strides, offsets,
+			format, handles, strides, offsets,
 			modifiers, &fb->fb_id, flags);
 #endif
 	if (ret) {
@@ -88,7 +89,7 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 		memcpy(handles, (uint32_t [4]){gbm_bo_get_handle(bo).u32,0,0,0}, 16);
 		memcpy(strides, (uint32_t [4]){gbm_bo_get_stride(bo),0,0,0}, 16);
 		memset(offsets, 0, 16);
-		ret = drmModeAddFB2(drm_fd, width, height, DRM_FORMAT_XRGB8888,
+		ret = drmModeAddFB2(drm_fd, width, height, format,
 				handles, strides, offsets, &fb->fb_id, 0);
 	}
 

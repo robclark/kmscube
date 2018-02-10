@@ -47,6 +47,7 @@ get_modifiers(uint64_t **mods)
 const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 {
 	gbm.dev = gbm_create_device(drm_fd);
+	gbm.format = GBM_FORMAT_XRGB8888;
 
 #ifndef HAVE_GBM_MODIFIERS
 	if (modifier != DRM_FORMAT_MOD_INVALID) {
@@ -54,7 +55,7 @@ const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 		return NULL;
 	}
 	gbm.surface = gbm_surface_create(gbm.dev, w, h,
-			GBM_FORMAT_XRGB8888,
+			gbm.format,
 			GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
 #else
 	uint64_t *mods;
@@ -66,7 +67,7 @@ const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 		count = get_modifiers(&mods);
 	}
 	gbm.surface = gbm_surface_create_with_modifiers(gbm.dev, w, h,
-			GBM_FORMAT_XRGB8888, mods, count);
+			gbm.format, mods, count);
 #endif
 
 	if (!gbm.surface) {
@@ -100,9 +101,75 @@ static bool has_ext(const char *extension_list, const char *ext)
 	}
 }
 
+static int
+match_config_to_visual(EGLDisplay egl_display,
+		       EGLint visual_id,
+		       EGLConfig *configs,
+		       int count)
+{
+	int i;
+
+	for (i = 0; i < count; ++i) {
+		EGLint id;
+
+		if (!eglGetConfigAttrib(egl_display,
+				configs[i], EGL_NATIVE_VISUAL_ID,
+				&id))
+			continue;
+
+		if (id == visual_id)
+			return i;
+	}
+
+	return -1;
+}
+
+static bool
+egl_choose_config(EGLDisplay egl_display, const EGLint *attribs,
+                  EGLint visual_id, EGLConfig *config_out)
+{
+	EGLint count = 0;
+	EGLint matched = 0;
+	EGLConfig *configs;
+	int config_index = -1;
+
+	if (!eglGetConfigs(egl_display, NULL, 0, &count) || count < 1) {
+		printf("No EGL configs to choose from.\n");
+		return false;
+	}
+	configs = malloc(count * sizeof *configs);
+	if (!configs)
+		return false;
+
+	if (!eglChooseConfig(egl_display, attribs, configs,
+			      count, &matched) || !matched) {
+		printf("No EGL configs with appropriate attributes.\n");
+		goto out;
+	}
+
+	if (!visual_id)
+		config_index = 0;
+
+	if (config_index == -1)
+		config_index = match_config_to_visual(egl_display,
+						      visual_id,
+						      configs,
+						      matched);
+
+	if (config_index != -1)
+		*config_out = configs[config_index];
+
+out:
+	free(configs);
+	if (config_index == -1)
+		return false;
+
+	return true;
+}
+
 int init_egl(struct egl *egl, const struct gbm *gbm)
 {
-	EGLint major, minor, n;
+	EGLint major, minor;
 
 	static const EGLint context_attribs[] = {
 		EGL_CONTEXT_CLIENT_VERSION, 2,
@@ -174,8 +241,9 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 		return -1;
 	}
 
-	if (!eglChooseConfig(egl->display, config_attribs, &egl->config, 1, &n) || n != 1) {
-		printf("failed to choose config: %d\n", n);
+	if (!egl_choose_config(egl->display, config_attribs, gbm->format,
+                               &egl->config)) {
+		printf("failed to choose config\n");
 		return -1;
 	}
 
