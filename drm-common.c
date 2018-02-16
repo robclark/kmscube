@@ -104,7 +104,8 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 	return fb;
 }
 
-static uint32_t find_crtc_for_encoder(const drmModeRes *resources,
+static uint32_t find_crtc_for_encoder(const struct drm *drm,
+		const drmModeRes *resources,
 		const drmModeEncoder *encoder) {
 	int i;
 
@@ -114,13 +115,24 @@ static uint32_t find_crtc_for_encoder(const drmModeRes *resources,
 		 */
 		const uint32_t crtc_mask = 1 << i;
 		const uint32_t crtc_id = resources->crtcs[i];
+
+		/* a bit hacky, but in writeback case this is called a 2nd
+		 * time, where we need to pick a different crtc.
+		 *
+		 * TODO this probably would be cleaner (and easier to extend
+		 * for dual-head, etc, if various allocation fxns tracked a
+		 * bitmask of already allocated resources.
+		 */
+		if (crtc_id == drm->crtc_id)
+			continue;
+
 		if (encoder->possible_crtcs & crtc_mask) {
 			return crtc_id;
 		}
 	}
 
 	/* no match found */
-	return -1;
+	return 0;
 }
 
 uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes *resources,
@@ -132,7 +144,8 @@ uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes *resour
 		drmModeEncoder *encoder = drmModeGetEncoder(drm->fd, encoder_id);
 
 		if (encoder) {
-			const uint32_t crtc_id = find_crtc_for_encoder(resources, encoder);
+			const uint32_t crtc_id =
+				find_crtc_for_encoder(drm, resources, encoder);
 
 			drmModeFreeEncoder(encoder);
 			if (crtc_id != 0) {

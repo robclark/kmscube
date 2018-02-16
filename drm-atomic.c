@@ -164,9 +164,10 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 
 	if (drm.wb_connector) {
 		uint32_t wb_plane_id = drm.wb_plane->plane->plane_id;
+		uint32_t wb_crtc_id = drm.wb_crtc->crtc->crtc_id;
 
 		add_plane_property(req, wb_plane_id, "FB_ID", fb_id);
-		add_plane_property(req, wb_plane_id, "CRTC_ID", drm.crtc_id);
+		add_plane_property(req, wb_plane_id, "CRTC_ID", wb_crtc_id);
 		add_plane_property(req, wb_plane_id, "SRC_X", 0);
 		add_plane_property(req, wb_plane_id, "SRC_Y", 0);
 		add_plane_property(req, wb_plane_id, "SRC_W", drm.mode->hdisplay << 16);
