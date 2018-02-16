@@ -127,6 +127,22 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 
 		if (add_crtc_property(req, drm.crtc_id, "ACTIVE", 1) < 0)
 			return -1;
+
+		if (drm.wb_connector) {
+			uint32_t wb_connector_id =
+				drm.wb_connector->connector->connector_id;
+			uint32_t wb_crtc_id = drm.wb_crtc->crtc->crtc_id;
+
+			if (add_connector_property(req, wb_connector_id,
+					"CRTC_ID", wb_crtc_id) < 0)
+				return -1;
+
+			if (add_crtc_property(req, wb_crtc_id, "MODE_ID", blob_id) < 0)
+				return -1;
+
+			if (add_crtc_property(req, wb_crtc_id, "ACTIVE", 1) < 0)
+				return -1;
+		}
 	}
 
 	add_plane_property(req, plane_id, "FB_ID", fb_id);
@@ -144,6 +160,27 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 		add_crtc_property(req, drm.crtc_id, "OUT_FENCE_PTR",
 				VOID2U64(&drm.kms_out_fence_fd));
 		add_plane_property(req, plane_id, "IN_FENCE_FD", drm.kms_in_fence_fd);
+	}
+
+	if (drm.wb_connector) {
+		uint32_t wb_plane_id = drm.wb_plane->plane->plane_id;
+
+		add_plane_property(req, wb_plane_id, "FB_ID", fb_id);
+		add_plane_property(req, wb_plane_id, "CRTC_ID", drm.crtc_id);
+		add_plane_property(req, wb_plane_id, "SRC_X", 0);
+		add_plane_property(req, wb_plane_id, "SRC_Y", 0);
+		add_plane_property(req, wb_plane_id, "SRC_W", drm.mode->hdisplay << 16);
+		add_plane_property(req, wb_plane_id, "SRC_H", drm.mode->vdisplay << 16);
+		add_plane_property(req, wb_plane_id, "CRTC_X", 0);
+		add_plane_property(req, wb_plane_id, "CRTC_Y", 0);
+		add_plane_property(req, wb_plane_id, "CRTC_W", drm.mode->hdisplay);
+		add_plane_property(req, wb_plane_id, "CRTC_H", drm.mode->vdisplay);
+
+		if (drm.kms_in_fence_fd) {
+			// TODO writeback connector out-fence
+			add_plane_property(req, wb_plane_id, "IN_FENCE_FD",
+					drm.kms_in_fence_fd);
+		}
 	}
 
 	ret = drmModeAtomicCommit(drm.fd, req, flags, NULL);
