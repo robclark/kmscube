@@ -123,7 +123,7 @@ static uint32_t find_crtc_for_encoder(const drmModeRes *resources,
 	return -1;
 }
 
-static uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes *resources,
+uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes *resources,
 		const drmModeConnector *connector) {
 	int i;
 
@@ -142,6 +142,17 @@ static uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes 
 	}
 
 	/* no match found */
+	return 0;
+}
+
+int find_crtc_index(const drmModeRes *resources, uint32_t crtc_id)
+{
+	int i;
+
+	for (i = 0; i < resources->count_crtcs; i++)
+		if (resources->crtcs[i] == crtc_id)
+			return i;
+
 	return -1;
 }
 
@@ -225,12 +236,7 @@ int init_drm(struct drm *drm, const char *device)
 		drm->crtc_id = crtc_id;
 	}
 
-	for (i = 0; i < resources->count_crtcs; i++) {
-		if (resources->crtcs[i] == drm->crtc_id) {
-			drm->crtc_index = i;
-			break;
-		}
-	}
+	drm->crtc_index = find_crtc_index(resources, drm->crtc_id);
 
 	drmModeFreeResources(resources);
 

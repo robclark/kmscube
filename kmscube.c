@@ -25,6 +25,7 @@
 /* Based on a egl cube test app originally written by Arvin Schnell */
 
 #include <string.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -43,7 +44,7 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:M:m:V:";
+static const char *shortopts = "AD:M:m:V:W";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'A'},
@@ -51,6 +52,7 @@ static const struct option longopts[] = {
 	{"mode",   required_argument, 0, 'M'},
 	{"modifier", required_argument, 0, 'm'},
 	{"video",  required_argument, 0, 'V'},
+	{"writeback", no_argument,    0, 'W'},
 	{0, 0, 0, 0}
 };
 
@@ -67,8 +69,9 @@ static void usage(const char *name)
 			"        nv12-2img -  yuv textured (color conversion in shader)\n"
 			"        nv12-1img -  yuv textured (single nv12 texture)\n"
 			"    -m, --modifier=MODIFIER  hardcode the selected modifier\n"
-			"    -V, --video=FILE         video textured cube\n",
-			name);
+			"    -V, --video=FILE         video textured cube\n"
+			"    -W, --writeback          writeback mode (only valid for atomic+rgba mode)\n"
+			, name);
 }
 
 int main(int argc, char *argv[])
@@ -77,7 +80,8 @@ int main(int argc, char *argv[])
 	const char *video = NULL;
 	enum mode mode = SMOOTH;
 	uint64_t modifier = DRM_FORMAT_MOD_INVALID;
-	int atomic = 0;
+	bool atomic = false;
+	bool writeback = false;
 	int opt;
 
 #ifdef HAVE_GST
@@ -88,7 +92,7 @@ int main(int argc, char *argv[])
 	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (opt) {
 		case 'A':
-			atomic = 1;
+			atomic = true;
 			break;
 		case 'D':
 			device = optarg;
@@ -115,14 +119,35 @@ int main(int argc, char *argv[])
 			mode = VIDEO;
 			video = optarg;
 			break;
+		case 'W':
+			writeback = true;
+			break;
 		default:
 			usage(argv[0]);
 			return -1;
 		}
 	}
 
+	/* TODO we probably could support YUV writeback in the nv12 modes.
+	 * But since we want to use the normal texture for the first frame
+	 * to "seed" the writeback, it is probably simplier if writeback
+	 * output is same format as first frame's texture.  Or at least
+	 * if we didn't have to switch shaders.
+	 */
+	if (writeback && (mode != RGBA)) {
+		printf("writeback only valid in rgba texture cube mode!\n");
+		usage(argv[0]);
+		return -1;
+	}
+
+	if (writeback && !atomic) {
+		printf("writeback only valid in atomic mode!\n");
+		usage(argv[0]);
+		return -1;
+	}
+
 	if (atomic)
-		drm = init_drm_atomic(device);
+		drm = init_drm_atomic(device, writeback);
 	else
 		drm = init_drm_legacy(device);
 	if (!drm) {
@@ -142,7 +167,7 @@ int main(int argc, char *argv[])
 	else if (mode == VIDEO)
 		egl = init_cube_video(gbm, video);
 	else
-		egl = init_cube_tex(gbm, mode);
+		egl = init_cube_tex(gbm, mode, writeback);
 
 	if (!egl) {
 		printf("failed to initialize EGL\n");

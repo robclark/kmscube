@@ -59,6 +59,11 @@ struct drm {
 	int kms_in_fence_fd;
 	int kms_out_fence_fd;
 
+	/* for writeback mode: */
+	struct plane *wb_plane;
+	struct crtc *wb_crtc;
+	struct connector *wb_connector;
+
 	drmModeModeInfo *mode;
 	uint32_t crtc_id;
 	uint32_t connector_id;
@@ -73,8 +78,12 @@ struct drm_fb {
 
 struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo);
 
+uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes *resources,
+		const drmModeConnector *connector);
+int find_crtc_index(const drmModeRes *resources, uint32_t crtc_id);
+
 int init_drm(struct drm *drm, const char *device);
 const struct drm * init_drm_legacy(const char *device);
-const struct drm * init_drm_atomic(const char *device);
+const struct drm * init_drm_atomic(const char *device, bool writeback);
 
 #endif /* _DRM_COMMON_H */

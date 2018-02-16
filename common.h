@@ -24,6 +24,8 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 
+#include <stdbool.h>
+
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <EGL/egl.h>
@@ -110,7 +112,7 @@ enum mode {
 };
 
 const struct egl * init_cube_smooth(const struct gbm *gbm);
-const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode);
+const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode, bool writeback);
 
 #ifdef HAVE_GST
 

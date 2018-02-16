@@ -279,6 +279,27 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 	return ret;
 }
 
+static int get_plane_type(uint32_t plane_id)
+{
+	int type = -1;
+	drmModeObjectPropertiesPtr props =
+		drmModeObjectGetProperties(drm.fd, plane_id, DRM_MODE_OBJECT_PLANE);
+
+	for (unsigned i = 0; (i < props->count_props) && (type == -1); i++) {
+		drmModePropertyPtr p =
+			drmModeGetProperty(drm.fd, props->props[i]);
+
+		if (strcmp(p->name, "type") == 0)
+			type = props->prop_values[i];
+
+		drmModeFreeProperty(p);
+	}
+
+	drmModeFreeObjectProperties(props);
+
+	return type;
+}
+
 /* Pick a plane.. something that at a minimum can be connected to
  * the chosen crtc, but prefer primary plane.
  *
@@ -288,9 +309,9 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 static int get_plane_id(void)
 {
 	drmModePlaneResPtr plane_resources;
-	uint32_t i, j;
+	uint32_t i;
 	int ret = -EINVAL;
-	int found_primary = 0;
+	bool found_primary = false;
 
 	plane_resources = drmModeGetPlaneResources(drm.fd);
 	if (!plane_resources) {
@@ -307,26 +328,11 @@ static int get_plane_id(void)
 		}
 
 		if (plane->possible_crtcs & (1 << drm.crtc_index)) {
-			drmModeObjectPropertiesPtr props =
-				drmModeObjectGetProperties(drm.fd, id, DRM_MODE_OBJECT_PLANE);
-
 			/* primary or not, this plane is good enough to use: */
 			ret = id;
 
-			for (j = 0; j < props->count_props; j++) {
-				drmModePropertyPtr p =
-					drmModeGetProperty(drm.fd, props->props[j]);
-
-				if ((strcmp(p->name, "type") == 0) &&
-						(props->prop_values[j] == DRM_PLANE_TYPE_PRIMARY)) {
-					/* found our primary plane, lets use that: */
-					found_primary = 1;
-				}
-
-				drmModeFreeProperty(p);
-			}
-
-			drmModeFreeObjectProperties(props);
+			if (get_plane_type(id) == DRM_PLANE_TYPE_PRIMARY)
+				found_primary = true;
 		}
 
 		drmModeFreePlane(plane);
@@ -337,7 +343,7 @@ static int get_plane_id(void)
 	return ret;
 }
 
-const struct drm * init_drm_atomic(const char *device)
+const struct drm * init_drm_atomic(const char *device, bool writeback)
 {
 	uint32_t plane_id;
 	int ret;
@@ -368,39 +374,132 @@ const struct drm * init_drm_atomic(const char *device)
 	drm.crtc = calloc(1, sizeof(*drm.crtc));
 	drm.connector = calloc(1, sizeof(*drm.connector));
 
-#define get_resource(type, Type, id) do { 					\
-		drm.type->type = drmModeGet##Type(drm.fd, id);			\
-		if (!drm.type->type) {						\
+#define get_resource(var, type, Type, id) do { 					\
+		(var)->type = drmModeGet##Type(drm.fd, id);			\
+		if (!(var)->type) {						\
 			printf("could not get %s %i: %s\n",			\
 					#type, id, strerror(errno));		\
 			return NULL;						\
 		}								\
 	} while (0)
 
-	get_resource(plane, Plane, plane_id);
-	get_resource(crtc, Crtc, drm.crtc_id);
-	get_resource(connector, Connector, drm.connector_id);
+	get_resource(drm.plane, plane, Plane, plane_id);
+	get_resource(drm.crtc, crtc, Crtc, drm.crtc_id);
+	get_resource(drm.connector, connector, Connector, drm.connector_id);
 
-#define get_properties(type, TYPE, id) do {					\
+#define get_properties(var, type, TYPE, id) do {				\
 		uint32_t i;							\
-		drm.type->props = drmModeObjectGetProperties(drm.fd,		\
+		(var)->props = drmModeObjectGetProperties(drm.fd,		\
 				id, DRM_MODE_OBJECT_##TYPE);			\
-		if (!drm.type->props) {						\
+		if (!(var)->props) {						\
 			printf("could not get %s %u properties: %s\n", 		\
 					#type, id, strerror(errno));		\
 			return NULL;						\
 		}								\
-		drm.type->props_info = calloc(drm.type->props->count_props,	\
-				sizeof(drm.type->props_info));			\
-		for (i = 0; i < drm.type->props->count_props; i++) {		\
-			drm.type->props_info[i] = drmModeGetProperty(drm.fd,	\
-					drm.type->props->props[i]);		\
+		(var)->props_info = calloc((var)->props->count_props,		\
+				sizeof((var)->props_info));			\
+		for (i = 0; i < (var)->props->count_props; i++) {		\
+			(var)->props_info[i] = drmModeGetProperty(drm.fd,	\
+					(var)->props->props[i]);		\
 		}								\
 	} while (0)
 
-	get_properties(plane, PLANE, plane_id);
-	get_properties(crtc, CRTC, drm.crtc_id);
-	get_properties(connector, CONNECTOR, drm.connector_id);
+	get_properties(drm.plane, plane, PLANE, plane_id);
+	get_properties(drm.crtc, crtc, CRTC, drm.crtc_id);
+	get_properties(drm.connector, connector, CONNECTOR, drm.connector_id);
+
+	if (writeback) {
+		drmModeRes *resources;
+		drmModePlaneResPtr plane_resources;
+		drmModeConnector *connector = NULL;
+		uint32_t wb_crtc_id, wb_plane_id = 0;
+		int wb_crtc_index;
+
+		resources = drmModeGetResources(drm.fd);
+		if (!resources) {
+			printf("drmModeGetResources failed: %s\n", strerror(errno));
+			return NULL;
+		}
+
+// XXX hack to avoid libdrm patch
+#define DRM_MODE_CONNECTOR_WRITEBACK	18
+
+		/* find a writeback connector: */
+		for (int i = 0; i < resources->count_connectors; i++) {
+			connector = drmModeGetConnector(drm.fd, resources->connectors[i]);
+			if (connector->connector_type == DRM_MODE_CONNECTOR_WRITEBACK) {
+				/* found one, let's use this! */
+				break;
+			}
+			drmModeFreeConnector(connector);
+			connector = NULL;
+		}
+
+		if (!connector) {
+			printf("no writeback connector found!\n");
+			return NULL;
+		}
+
+		/* let's find a CRTC that we can use with this connector: */
+		wb_crtc_id = find_crtc_for_connector(&drm, resources, connector);
+		if (!wb_crtc_id) {
+			printf("no crtc for writeback found!\n");
+			return NULL;
+		}
+
+		wb_crtc_index = find_crtc_index(resources, wb_crtc_id);
+
+		/* and now a plane to use with wb connector/crtc, which isn't
+		 * already in use:
+		 */
+		plane_resources = drmModeGetPlaneResources(drm.fd);
+		if (!plane_resources) {
+			printf("drmModeGetPlaneResources failed: %s\n", strerror(errno));
+			return NULL;
+		}
+
+		for (unsigned i = 0; (i < plane_resources->count_planes) && !wb_plane_id; i++) {
+			uint32_t id = plane_resources->planes[i];
+			drmModePlanePtr plane = drmModeGetPlane(drm.fd, id);
+			if (!plane) {
+				printf("drmModeGetPlane(%u) failed: %s\n", id, strerror(errno));
+				continue;
+			}
+
+			/* look for compatible plane, which isn't the one used for display: */
+			if ((plane->possible_crtcs & (1 << wb_crtc_index)) &&
+			    (id != plane_id)) {
+				int type = get_plane_type(id);
+				if ((type == DRM_PLANE_TYPE_PRIMARY) ||
+				    (type == DRM_PLANE_TYPE_OVERLAY))
+					wb_plane_id = id;
+			}
+
+			drmModeFreePlane(plane);
+		}
+
+		drmModeFreePlaneResources(plane_resources);
+
+		if (!wb_plane_id) {
+			printf("could not find plane for writeback!\n");
+			return NULL;
+		}
+
+		/* ok, good to go! */
+		drm.wb_plane = calloc(1, sizeof(*drm.wb_plane));
+		drm.wb_crtc = calloc(1, sizeof(*drm.wb_crtc));
+		drm.wb_connector = calloc(1, sizeof(*drm.wb_connector));
+
+		get_resource(drm.wb_plane, plane, Plane, wb_plane_id);
+		get_resource(drm.wb_crtc, crtc, Crtc, wb_crtc_id);
+		get_resource(drm.wb_connector, connector, Connector,
+				connector->connector_id);
+
+		get_properties(drm.wb_plane, plane, PLANE, wb_plane_id);
+		get_properties(drm.wb_crtc, crtc, CRTC, wb_crtc_id);
+		get_properties(drm.wb_connector, connector, CONNECTOR,
+				connector->connector_id);
+	}
 
 	drm.run = atomic_run;
 
