@@ -37,10 +37,9 @@ static struct drm drm = {
 	.kms_out_fence_fd = -1,
 };
 
-static int add_connector_property(drmModeAtomicReq *req, uint32_t obj_id,
+static int add_connector_property(drmModeAtomicReq *req, struct connector *obj,
 					const char *name, uint64_t value)
 {
-	struct connector *obj = drm.connector;
 	unsigned int i;
 	int prop_id = 0;
 
@@ -56,13 +55,13 @@ static int add_connector_property(drmModeAtomicReq *req, uint32_t obj_id,
 		return -EINVAL;
 	}
 
-	return drmModeAtomicAddProperty(req, obj_id, prop_id, value);
+	return drmModeAtomicAddProperty(req, obj->connector->connector_id,
+			prop_id, value);
 }
 
-static int add_crtc_property(drmModeAtomicReq *req, uint32_t obj_id,
+static int add_crtc_property(drmModeAtomicReq *req, struct crtc *obj,
 				const char *name, uint64_t value)
 {
-	struct crtc *obj = drm.crtc;
 	unsigned int i;
 	int prop_id = -1;
 
@@ -78,13 +77,13 @@ static int add_crtc_property(drmModeAtomicReq *req, uint32_t obj_id,
 		return -EINVAL;
 	}
 
-	return drmModeAtomicAddProperty(req, obj_id, prop_id, value);
+	return drmModeAtomicAddProperty(req, obj->crtc->crtc_id,
+			prop_id, value);
 }
 
-static int add_plane_property(drmModeAtomicReq *req, uint32_t obj_id,
+static int add_plane_property(drmModeAtomicReq *req, struct plane *obj,
 				const char *name, uint64_t value)
 {
-	struct plane *obj = drm.plane;
 	unsigned int i;
 	int prop_id = -1;
 
@@ -101,20 +100,20 @@ static int add_plane_property(drmModeAtomicReq *req, uint32_t obj_id,
 		return -EINVAL;
 	}
 
-	return drmModeAtomicAddProperty(req, obj_id, prop_id, value);
+	return drmModeAtomicAddProperty(req, obj->plane->plane_id,
+			prop_id, value);
 }
 
 static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 {
 	drmModeAtomicReq *req;
-	uint32_t plane_id = drm.plane->plane->plane_id;
 	uint32_t blob_id;
 	int ret;
 
 	req = drmModeAtomicAlloc();
 
 	if (flags & DRM_MODE_ATOMIC_ALLOW_MODESET) {
-		if (add_connector_property(req, drm.connector_id, "CRTC_ID",
+		if (add_connector_property(req, drm.connector, "CRTC_ID",
 						drm.crtc_id) < 0)
 				return -1;
 
@@ -122,69 +121,64 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 					      &blob_id) != 0)
 			return -1;
 
-		if (add_crtc_property(req, drm.crtc_id, "MODE_ID", blob_id) < 0)
+		if (add_crtc_property(req, drm.crtc, "MODE_ID", blob_id) < 0)
 			return -1;
 
-		if (add_crtc_property(req, drm.crtc_id, "ACTIVE", 1) < 0)
+		if (add_crtc_property(req, drm.crtc, "ACTIVE", 1) < 0)
 			return -1;
 
 		if (drm.wb_connector) {
-			uint32_t wb_connector_id =
-				drm.wb_connector->connector->connector_id;
 			uint32_t wb_crtc_id = drm.wb_crtc->crtc->crtc_id;
 
-			if (add_connector_property(req, wb_connector_id,
+			if (add_connector_property(req, drm.wb_connector,
 					"CRTC_ID", wb_crtc_id) < 0)
 				return -1;
 
-			if (add_crtc_property(req, wb_crtc_id, "MODE_ID", blob_id) < 0)
+			if (add_crtc_property(req, drm.wb_crtc, "MODE_ID", blob_id) < 0)
 				return -1;
 
-			if (add_crtc_property(req, wb_crtc_id, "ACTIVE", 1) < 0)
+			if (add_crtc_property(req, drm.wb_crtc, "ACTIVE", 1) < 0)
 				return -1;
 		}
 	}
 
-	add_plane_property(req, plane_id, "FB_ID", fb_id);
-	add_plane_property(req, plane_id, "CRTC_ID", drm.crtc_id);
-	add_plane_property(req, plane_id, "SRC_X", 0);
-	add_plane_property(req, plane_id, "SRC_Y", 0);
-	add_plane_property(req, plane_id, "SRC_W", drm.mode->hdisplay << 16);
-	add_plane_property(req, plane_id, "SRC_H", drm.mode->vdisplay << 16);
-	add_plane_property(req, plane_id, "CRTC_X", 0);
-	add_plane_property(req, plane_id, "CRTC_Y", 0);
-	add_plane_property(req, plane_id, "CRTC_W", drm.mode->hdisplay);
-	add_plane_property(req, plane_id, "CRTC_H", drm.mode->vdisplay);
+	add_plane_property(req, drm.plane, "FB_ID", fb_id);
+	add_plane_property(req, drm.plane, "CRTC_ID", drm.crtc_id);
+	add_plane_property(req, drm.plane, "SRC_X", 0);
+	add_plane_property(req, drm.plane, "SRC_Y", 0);
+	add_plane_property(req, drm.plane, "SRC_W", drm.mode->hdisplay << 16);
+	add_plane_property(req, drm.plane, "SRC_H", drm.mode->vdisplay << 16);
+	add_plane_property(req, drm.plane, "CRTC_X", 0);
+	add_plane_property(req, drm.plane, "CRTC_Y", 0);
+	add_plane_property(req, drm.plane, "CRTC_W", drm.mode->hdisplay);
+	add_plane_property(req, drm.plane, "CRTC_H", drm.mode->vdisplay);
 
 	if (drm.kms_in_fence_fd != -1) {
-		add_crtc_property(req, drm.crtc_id, "OUT_FENCE_PTR",
+		add_crtc_property(req, drm.crtc, "OUT_FENCE_PTR",
 				VOID2U64(&drm.kms_out_fence_fd));
-		add_plane_property(req, plane_id, "IN_FENCE_FD", drm.kms_in_fence_fd);
+		add_plane_property(req, drm.plane, "IN_FENCE_FD", drm.kms_in_fence_fd);
 	}
 
 	if (drm.wb_connector) {
-		uint32_t wb_connector_id =
-			drm.wb_connector->connector->connector_id;
 		uint32_t wb_crtc_id = drm.wb_crtc->crtc->crtc_id;
-		uint32_t wb_plane_id = drm.wb_plane->plane->plane_id;
 
-		add_plane_property(req, wb_plane_id, "FB_ID", fb_id);
-		add_plane_property(req, wb_plane_id, "CRTC_ID", wb_crtc_id);
-		add_plane_property(req, wb_plane_id, "SRC_X", 0);
-		add_plane_property(req, wb_plane_id, "SRC_Y", 0);
-		add_plane_property(req, wb_plane_id, "SRC_W", drm.mode->hdisplay << 16);
-		add_plane_property(req, wb_plane_id, "SRC_H", drm.mode->vdisplay << 16);
-		add_plane_property(req, wb_plane_id, "CRTC_X", 0);
-		add_plane_property(req, wb_plane_id, "CRTC_Y", 0);
-		add_plane_property(req, wb_plane_id, "CRTC_W", drm.mode->hdisplay);
-		add_plane_property(req, wb_plane_id, "CRTC_H", drm.mode->vdisplay);
+		add_plane_property(req, drm.wb_plane, "FB_ID", fb_id);
+		add_plane_property(req, drm.wb_plane, "CRTC_ID", wb_crtc_id);
+		add_plane_property(req, drm.wb_plane, "SRC_X", 0);
+		add_plane_property(req, drm.wb_plane, "SRC_Y", 0);
+		add_plane_property(req, drm.wb_plane, "SRC_W", drm.mode->hdisplay << 16);
+		add_plane_property(req, drm.wb_plane, "SRC_H", drm.mode->vdisplay << 16);
+		add_plane_property(req, drm.wb_plane, "CRTC_X", 0);
+		add_plane_property(req, drm.wb_plane, "CRTC_Y", 0);
+		add_plane_property(req, drm.wb_plane, "CRTC_W", drm.mode->hdisplay);
+		add_plane_property(req, drm.wb_plane, "CRTC_H", drm.mode->vdisplay);
 
 		// TODO allocate a real writeback buffer
-		add_connector_property(req, wb_connector_id, "WRITEBACK_FB_ID", fb_id);
+		add_connector_property(req, drm.wb_connector, "WRITEBACK_FB_ID", fb_id);
 
 		if (drm.kms_in_fence_fd) {
 			// TODO writeback connector out-fence
-			add_plane_property(req, wb_plane_id, "IN_FENCE_FD",
+			add_plane_property(req, drm.wb_plane, "IN_FENCE_FD",
 					drm.kms_in_fence_fd);
 		}
 	}
