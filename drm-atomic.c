@@ -163,8 +163,10 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 	}
 
 	if (drm.wb_connector) {
-		uint32_t wb_plane_id = drm.wb_plane->plane->plane_id;
+		uint32_t wb_connector_id =
+			drm.wb_connector->connector->connector_id;
 		uint32_t wb_crtc_id = drm.wb_crtc->crtc->crtc_id;
+		uint32_t wb_plane_id = drm.wb_plane->plane->plane_id;
 
 		add_plane_property(req, wb_plane_id, "FB_ID", fb_id);
 		add_plane_property(req, wb_plane_id, "CRTC_ID", wb_crtc_id);
@@ -176,6 +178,9 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 		add_plane_property(req, wb_plane_id, "CRTC_Y", 0);
 		add_plane_property(req, wb_plane_id, "CRTC_W", drm.mode->hdisplay);
 		add_plane_property(req, wb_plane_id, "CRTC_H", drm.mode->vdisplay);
+
+		// TODO allocate a real writeback buffer
+		add_connector_property(req, wb_connector_id, "WRITEBACK_FB_ID", fb_id);
 
 		if (drm.kms_in_fence_fd) {
 			// TODO writeback connector out-fence
