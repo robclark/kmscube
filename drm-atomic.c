@@ -104,7 +104,7 @@ static int add_plane_property(drmModeAtomicReq *req, struct plane *obj,
 			prop_id, value);
 }
 
-static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
+static int drm_atomic_commit(uint32_t fb_id, uint32_t wb_fb_id, uint32_t flags)
 {
 	drmModeAtomicReq *req;
 	uint32_t blob_id;
@@ -172,9 +172,7 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t flags)
 		add_plane_property(req, drm.wb_plane, "CRTC_Y", 0);
 		add_plane_property(req, drm.wb_plane, "CRTC_W", drm.mode->hdisplay);
 		add_plane_property(req, drm.wb_plane, "CRTC_H", drm.mode->vdisplay);
-
-		// TODO allocate a real writeback buffer
-		add_connector_property(req, drm.wb_connector, "WRITEBACK_FB_ID", fb_id);
+		add_connector_property(req, drm.wb_connector, "WRITEBACK_FB_ID", wb_fb_id);
 
 		if (drm.kms_in_fence_fd) {
 			// TODO writeback connector out-fence
@@ -213,6 +211,7 @@ static EGLSyncKHR create_fence(const struct egl *egl, int fd)
 static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 {
 	struct gbm_bo *bo = NULL;
+	struct gbm_bo *wb_bo = NULL;
 	struct drm_fb *fb;
 	uint32_t i = 0;
 	uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK;
@@ -225,6 +224,12 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 	    egl_check(egl, eglClientWaitSyncKHR))
 		return -1;
 
+	if (drm.wb_connector) {
+		wb_bo = gbm_bo_create(gbm->dev, drm.mode->vdisplay,
+			drm.mode->hdisplay, GBM_FORMAT_ABGR8888,
+			GBM_BO_USE_LINEAR);
+	}
+
 	/* Allow a modeset change for the first commit only. */
 	flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
 
@@ -232,6 +237,7 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		struct gbm_bo *next_bo;
 		EGLSyncKHR gpu_fence = NULL;   /* out-fence from gpu, in-fence to kms */
 		EGLSyncKHR kms_fence = NULL;   /* in-fence to gpu, out-fence from kms */
+		uint32_t wb_fb_id = 0;
 
 		if (drm.kms_out_fence_fd != -1) {
 			kms_fence = create_fence(egl, drm.kms_out_fence_fd);
@@ -294,11 +300,16 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 			egl->eglDestroySyncKHR(egl->display, kms_fence);
 		}
 
+		if (drm.wb_connector) {
+			// TODO double buffer..
+			wb_fb_id = drm_fb_get_from_bo(wb_bo)->fb_id;
+		}
+
 		/*
 		 * Here you could also update drm plane layers if you want
 		 * hw composition
 		 */
-		ret = drm_atomic_commit(fb->fb_id, flags);
+		ret = drm_atomic_commit(fb->fb_id, wb_fb_id, flags);
 		if (ret) {
 			printf("failed to commit: %s\n", strerror(errno));
 			return -1;
