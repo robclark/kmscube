@@ -63,6 +63,8 @@ struct drm {
 	struct plane *wb_plane;
 	struct crtc *wb_crtc;
 	struct connector *wb_connector;
+	int wb_out_fence_fd;
+	struct gbm_bo *wb_bo;     /* previous frame's writeback buffer */
 
 	drmModeModeInfo *mode;
 	uint32_t crtc_id;

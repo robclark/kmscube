@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "drm-common.h"
 #include "esUtil.h"
 
 
@@ -36,6 +37,9 @@ struct {
 	GLfloat aspect;
 	enum mode mode;
 	const struct gbm *gbm;
+	const struct drm *drm;
+
+	bool writeback;
 
 	GLuint program;
 	/* uniform handles: */
@@ -431,6 +435,42 @@ static int init_tex_nv12_1img(void)
 	return 0;
 }
 
+// TODO if we made this handle the two-plane case, we could perhaps replace a bunch
+// of init_tex_{rgba,nv12*}
+static int init_tex_bo(struct gbm_bo *bo)
+{
+	const EGLint attr[] = {
+		EGL_WIDTH, gbm_bo_get_width(bo),
+		EGL_HEIGHT, gbm_bo_get_height(bo),
+		EGL_LINUX_DRM_FOURCC_EXT, gbm_bo_get_format(bo),
+		EGL_DMA_BUF_PLANE0_FD_EXT, gbm_bo_get_fd(bo),
+		EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
+		EGL_DMA_BUF_PLANE0_PITCH_EXT, gbm_bo_get_stride(bo),
+		EGL_NONE
+	};
+	EGLImage img;
+
+	if (gl.tex[0])
+		glDeleteTextures(1, gl.tex);
+
+	glGenTextures(1, gl.tex);
+
+	img = egl->eglCreateImageKHR(egl->display, EGL_NO_CONTEXT,
+			EGL_LINUX_DMA_BUF_EXT, NULL, attr);
+	assert(img);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_EXTERNAL_OES, gl.tex[0]);
+	glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	egl->glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, img);
+
+	egl->eglDestroyImageKHR(egl->display, img);
+
+	return 0;
+}
+
 static int init_tex(enum mode mode)
 {
 	switch (mode) {
@@ -455,6 +495,10 @@ static void draw_cube_tex(unsigned i)
 	/* clear the color buffer */
 	glClearColor(0.5, 0.5, 0.5, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
+
+	if (gl.writeback && gl.drm->wb_bo) {
+		init_tex_bo(gl.drm->wb_bo);
+	}
 
 	esMatrixLoadIdentity(&modelview);
 	esTranslate(&modelview, 0.0f, 0.0f, -8.0f);
@@ -497,8 +541,8 @@ static void draw_cube_tex(unsigned i)
 	glDrawArrays(GL_TRIANGLE_STRIP, 20, 4);
 }
 
-const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode,
-		bool writeback)
+const struct egl * init_cube_tex(const struct gbm *gbm, const struct drm *drm,
+		enum mode mode, bool writeback)
 {
 	const char *fragment_shader_source = (mode == NV12_2IMG) ?
 			fragment_shader_source_2img : fragment_shader_source_1img;
@@ -516,6 +560,8 @@ const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode,
 	gl.aspect = (GLfloat)(gbm->height) / (GLfloat)(gbm->width);
 	gl.mode = mode;
 	gl.gbm = gbm;
+	gl.drm = drm;
+	gl.writeback = writeback;
 
 	ret = create_program(vertex_shader_source, fragment_shader_source);
 	if (ret < 0)

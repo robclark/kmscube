@@ -35,6 +35,7 @@
 
 static struct drm drm = {
 	.kms_out_fence_fd = -1,
+	.wb_out_fence_fd  = -1,
 };
 
 static int add_connector_property(drmModeAtomicReq *req, struct connector *obj,
@@ -175,7 +176,9 @@ static int drm_atomic_commit(uint32_t fb_id, uint32_t wb_fb_id, uint32_t flags)
 		add_connector_property(req, drm.wb_connector, "WRITEBACK_FB_ID", wb_fb_id);
 
 		if (drm.kms_in_fence_fd) {
-			// TODO writeback connector out-fence
+			add_connector_property(req, drm.wb_connector,
+					"WRITEBACK_OUT_FENCE_PTR",
+					VOID2U64(&drm.wb_out_fence_fd));
 			add_plane_property(req, drm.wb_plane, "IN_FENCE_FD",
 					drm.kms_in_fence_fd);
 		}
@@ -211,9 +214,9 @@ static EGLSyncKHR create_fence(const struct egl *egl, int fd)
 static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 {
 	struct gbm_bo *bo = NULL;
-	struct gbm_bo *wb_bo = NULL;
+	struct gbm_bo *wb_bos[2] = { NULL };
 	struct drm_fb *fb;
-	uint32_t i = 0;
+	uint32_t wb_idx = 0, i = 0;
 	uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK;
 	int ret;
 
@@ -225,9 +228,11 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		return -1;
 
 	if (drm.wb_connector) {
-		wb_bo = gbm_bo_create(gbm->dev, drm.mode->vdisplay,
-			drm.mode->hdisplay, GBM_FORMAT_ABGR8888,
-			GBM_BO_USE_LINEAR);
+		for (i = 0; i < ARRAY_SIZE(wb_bos); i++) {
+			wb_bos[i] = gbm_bo_create(gbm->dev, drm.mode->vdisplay,
+					drm.mode->hdisplay, GBM_FORMAT_ABGR8888,
+					GBM_BO_USE_LINEAR);
+		}
 	}
 
 	/* Allow a modeset change for the first commit only. */
@@ -237,21 +242,34 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 		struct gbm_bo *next_bo;
 		EGLSyncKHR gpu_fence = NULL;   /* out-fence from gpu, in-fence to kms */
 		EGLSyncKHR kms_fence = NULL;   /* in-fence to gpu, out-fence from kms */
+		EGLSyncKHR wb_fence  = NULL;   /* in-fence to gpu, out-fence from kms (writeback) */
 		uint32_t wb_fb_id = 0;
 
 		if (drm.kms_out_fence_fd != -1) {
 			kms_fence = create_fence(egl, drm.kms_out_fence_fd);
 			assert(kms_fence);
 
-			/* driver now has ownership of the fence fd: */
+			/* GL driver now has ownership of the fence fd: */
 			drm.kms_out_fence_fd = -1;
 
 			/* wait "on the gpu" (ie. this won't necessarily block, but
 			 * will block the rendering until fence is signaled), until
 			 * the previous pageflip completes so we don't render into
 			 * the buffer that is still on screen.
+			 *
+			 * XXX this seems to be broken unless FD_MESA_DEBUG=inorder
 			 */
 			egl->eglWaitSyncKHR(egl->display, kms_fence, 0);
+		}
+
+		if (drm.wb_out_fence_fd != -1) {
+			wb_fence = create_fence(egl, drm.wb_out_fence_fd);
+			assert(wb_fence);
+
+			/* GL driver now has ownership of the fence fd: */
+			drm.wb_out_fence_fd = -1;
+
+			egl->eglWaitSyncKHR(egl->display, wb_fence, 0);
 		}
 
 		egl->draw(i++);
@@ -300,9 +318,23 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 			egl->eglDestroySyncKHR(egl->display, kms_fence);
 		}
 
+		if (wb_fence) {
+			EGLint status;
+
+			do {
+				status = egl->eglClientWaitSyncKHR(egl->display,
+								   wb_fence,
+								   0,
+								   EGL_FOREVER_KHR);
+			} while (status != EGL_CONDITION_SATISFIED_KHR);
+
+			egl->eglDestroySyncKHR(egl->display, wb_fence);
+		}
+
 		if (drm.wb_connector) {
-			// TODO double buffer..
-			wb_fb_id = drm_fb_get_from_bo(wb_bo)->fb_id;
+			wb_fb_id = drm_fb_get_from_bo(wb_bos[wb_idx])->fb_id;
+			drm.wb_bo = wb_bos[wb_idx];
+			wb_idx = (wb_idx + 1) % ARRAY_SIZE(wb_bos);
 		}
 
 		/*

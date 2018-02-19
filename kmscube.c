@@ -38,8 +38,6 @@
 GST_DEBUG_CATEGORY(kmscube_debug);
 #endif
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-
 static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
@@ -167,7 +165,7 @@ int main(int argc, char *argv[])
 	else if (mode == VIDEO)
 		egl = init_cube_video(gbm, video);
 	else
-		egl = init_cube_tex(gbm, mode, writeback);
+		egl = init_cube_tex(gbm, drm, mode, writeback);
 
 	if (!egl) {
 		printf("failed to initialize EGL\n");

@@ -111,8 +111,10 @@ enum mode {
 	VIDEO,         /* video textured cube */
 };
 
+struct drm;
+
 const struct egl * init_cube_smooth(const struct gbm *gbm);
-const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode, bool writeback);
+const struct egl * init_cube_tex(const struct gbm *gbm, const struct drm *drm, enum mode mode, bool writeback);
 
 #ifdef HAVE_GST
 
@@ -132,5 +134,7 @@ init_cube_video(const struct gbm *gbm, const char *video)
 	return NULL;
 }
 #endif
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #endif /* _COMMON_H */
