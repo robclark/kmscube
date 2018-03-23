@@ -216,6 +216,9 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 	get_proc_dpy(EGL_KHR_fence_sync, eglClientWaitSyncKHR);
 	get_proc_dpy(EGL_ANDROID_native_fence_sync, eglDupNativeFenceFDANDROID);
 
+	egl->modifiers_supported = has_ext(egl_exts_dpy,
+					   "EGL_EXT_image_dma_buf_import_modifiers");
+
 	printf("Using display %p with EGL version %d.%d\n",
 			egl->display, major, minor);
 

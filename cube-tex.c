@@ -29,6 +29,7 @@
 #include "common.h"
 #include "esUtil.h"
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 struct {
 	struct egl egl;
@@ -213,7 +214,10 @@ static const char *fragment_shader_source_2img =
 
 static const uint32_t texw = 512, texh = 512;
 
-static int get_fd_rgba(uint32_t *pstride)
+WEAK uint64_t
+gbm_bo_get_modifier(struct gbm_bo *bo);
+
+static int get_fd_rgba(uint32_t *pstride, uint64_t *modifier)
 {
 	struct gbm_bo *bo;
 	void *map_data = NULL;
@@ -235,6 +239,11 @@ static int get_fd_rgba(uint32_t *pstride)
 
 	fd = gbm_bo_get_fd(bo);
 
+	if (gbm_bo_get_modifier)
+		*modifier = gbm_bo_get_modifier(bo);
+	else
+		*modifier = DRM_FORMAT_MOD_LINEAR;
+
 	/* we have the fd now, no longer need the bo: */
 	gbm_bo_destroy(bo);
 
@@ -243,7 +252,7 @@ static int get_fd_rgba(uint32_t *pstride)
 	return fd;
 }
 
-static int get_fd_y(uint32_t *pstride)
+static int get_fd_y(uint32_t *pstride, uint64_t *modifier)
 {
 	struct gbm_bo *bo;
 	void *map_data = NULL;
@@ -265,6 +274,11 @@ static int get_fd_y(uint32_t *pstride)
 
 	fd = gbm_bo_get_fd(bo);
 
+	if (gbm_bo_get_modifier)
+		*modifier = gbm_bo_get_modifier(bo);
+	else
+		*modifier = DRM_FORMAT_MOD_LINEAR;
+
 	/* we have the fd now, no longer need the bo: */
 	gbm_bo_destroy(bo);
 
@@ -273,7 +287,7 @@ static int get_fd_y(uint32_t *pstride)
 	return fd;
 }
 
-static int get_fd_uv(uint32_t *pstride)
+static int get_fd_uv(uint32_t *pstride, uint64_t *modifier)
 {
 	struct gbm_bo *bo;
 	void *map_data = NULL;
@@ -295,6 +309,11 @@ static int get_fd_uv(uint32_t *pstride)
 
 	fd = gbm_bo_get_fd(bo);
 
+	if (gbm_bo_get_modifier)
+		*modifier = gbm_bo_get_modifier(bo);
+	else
+		*modifier = DRM_FORMAT_MOD_LINEAR;
+
 	/* we have the fd now, no longer need the bo: */
 	gbm_bo_destroy(bo);
 
@@ -306,16 +325,28 @@ static int get_fd_uv(uint32_t *pstride)
 static int init_tex_rgba(void)
 {
 	uint32_t stride;
-	int fd = get_fd_rgba(&stride);
-	const EGLint attr[] = {
+	uint64_t modifier;
+	int fd = get_fd_rgba(&stride, &modifier);
+	EGLint attr[] = {
 		EGL_WIDTH, texw,
 		EGL_HEIGHT, texh,
 		EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_ABGR8888,
 		EGL_DMA_BUF_PLANE0_FD_EXT, fd,
 		EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
 		EGL_DMA_BUF_PLANE0_PITCH_EXT, stride,
+		EGL_NONE, EGL_NONE,	/* modifier lo */
+		EGL_NONE, EGL_NONE,	/* modifier hi */
 		EGL_NONE
 	};
+
+	if (egl->modifiers_supported &&
+	    modifier != DRM_FORMAT_MOD_INVALID) {
+		unsigned size =  ARRAY_SIZE(attr);
+		attr[size - 5] = EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT;
+		attr[size - 4] = modifier & 0xFFFFFFFF;
+		attr[size - 3] = EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT;
+		attr[size - 2] = modifier >> 32;
+	}
 	EGLImage img;
 
 	glGenTextures(1, gl.tex);
@@ -339,26 +370,48 @@ static int init_tex_rgba(void)
 static int init_tex_nv12_2img(void)
 {
 	uint32_t stride_y, stride_uv;
-	int fd_y = get_fd_y(&stride_y);
-	int fd_uv = get_fd_uv(&stride_uv);
-	const EGLint attr_y[] = {
+	uint64_t modifier_y, modifier_uv;
+	int fd_y = get_fd_y(&stride_y, &modifier_y);
+	int fd_uv = get_fd_uv(&stride_uv, &modifier_uv);
+	EGLint attr_y[] = {
 		EGL_WIDTH, texw,
 		EGL_HEIGHT, texh,
 		EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_R8,
 		EGL_DMA_BUF_PLANE0_FD_EXT, fd_y,
 		EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
 		EGL_DMA_BUF_PLANE0_PITCH_EXT, stride_y,
+		EGL_NONE, EGL_NONE,	/* modifier lo */
+		EGL_NONE, EGL_NONE,	/* modifier hi */
 		EGL_NONE
 	};
-	const EGLint attr_uv[] = {
+	EGLint attr_uv[] = {
 		EGL_WIDTH, texw/2,
 		EGL_HEIGHT, texh/2,
 		EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_GR88,
 		EGL_DMA_BUF_PLANE0_FD_EXT, fd_uv,
 		EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
 		EGL_DMA_BUF_PLANE0_PITCH_EXT, stride_uv,
+		EGL_NONE, EGL_NONE,	/* modifier lo */
+		EGL_NONE, EGL_NONE,	/* modifier hi */
 		EGL_NONE
 	};
+
+	if (egl->modifiers_supported &&
+	    modifier_y != DRM_FORMAT_MOD_INVALID &&
+	    modifier_uv != DRM_FORMAT_MOD_INVALID) {
+		unsigned size = ARRAY_SIZE(attr_y);
+		attr_y[size - 5] = EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT;
+		attr_y[size - 4] = modifier_y & 0xFFFFFFFF;
+		attr_y[size - 3] = EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT;
+		attr_y[size - 2] = modifier_y >> 32;
+
+		size = ARRAY_SIZE(attr_uv);
+		attr_uv[size - 5] = EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT;
+		attr_uv[size - 4] = modifier_uv & 0xFFFFFFFF;
+		attr_uv[size - 3] = EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT;
+		attr_uv[size - 2] = modifier_uv >> 32;
+	}
+
 	EGLImage img_y, img_uv;
 
 	glGenTextures(2, gl.tex);
@@ -397,9 +450,10 @@ static int init_tex_nv12_2img(void)
 static int init_tex_nv12_1img(void)
 {
 	uint32_t stride_y, stride_uv;
-	int fd_y = get_fd_y(&stride_y);
-	int fd_uv = get_fd_uv(&stride_uv);
-	const EGLint attr[] = {
+	uint64_t modifier_y, modifier_uv;
+	int fd_y = get_fd_y(&stride_y, &modifier_y);
+	int fd_uv = get_fd_uv(&stride_uv, &modifier_uv);
+	EGLint attr[] = {
 		EGL_WIDTH, texw,
 		EGL_HEIGHT, texh,
 		EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_NV12,
@@ -409,9 +463,27 @@ static int init_tex_nv12_1img(void)
 		EGL_DMA_BUF_PLANE1_FD_EXT, fd_uv,
 		EGL_DMA_BUF_PLANE1_OFFSET_EXT, 0,
 		EGL_DMA_BUF_PLANE1_PITCH_EXT, stride_uv,
+		EGL_NONE, EGL_NONE,	/* modifier lo */
+		EGL_NONE, EGL_NONE,	/* modifier hi */
+		EGL_NONE, EGL_NONE,	/* modifier lo */
+		EGL_NONE, EGL_NONE,	/* modifier hi */
 		EGL_NONE
 	};
 	EGLImage img;
+
+	if (egl->modifiers_supported &&
+	    modifier_y != DRM_FORMAT_MOD_INVALID &&
+	    modifier_uv != DRM_FORMAT_MOD_INVALID) {
+		unsigned size = ARRAY_SIZE(attr);
+		attr[size - 9] = EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT;
+		attr[size - 8] = modifier_y & 0xFFFFFFFF;
+		attr[size - 7] = EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT;
+		attr[size - 6] = modifier_y >> 32;
+		attr[size - 5] = EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT;
+		attr[size - 4] = modifier_uv & 0xFFFFFFFF;
+		attr[size - 3] = EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT;
+		attr[size - 2] = modifier_uv >> 32;
+	}
 
 	glGenTextures(1, gl.tex);
 
