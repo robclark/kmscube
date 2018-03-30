@@ -31,6 +31,18 @@
 #include "common.h"
 #include "drm-common.h"
 
+WEAK uint64_t
+gbm_bo_get_modifier(struct gbm_bo *bo);
+
+WEAK int
+gbm_bo_get_plane_count(struct gbm_bo *bo);
+
+WEAK uint32_t
+gbm_bo_get_stride_for_plane(struct gbm_bo *bo, int plane);
+
+WEAK uint32_t
+gbm_bo_get_offset(struct gbm_bo *bo, int plane);
+
 static void
 drm_fb_destroy_callback(struct gbm_bo *bo, void *data)
 {
@@ -62,26 +74,29 @@ struct drm_fb * drm_fb_get_from_bo(struct gbm_bo *bo)
 	height = gbm_bo_get_height(bo);
 	format = gbm_bo_get_format(bo);
 
-#ifdef HAVE_GBM_MODIFIERS
-	uint64_t modifiers[4] = {0};
-	modifiers[0] = gbm_bo_get_modifier(bo);
-	const int num_planes = gbm_bo_get_plane_count(bo);
-	for (int i = 0; i < num_planes; i++) {
-		strides[i] = gbm_bo_get_stride_for_plane(bo, i);
-		handles[i] = gbm_bo_get_handle(bo).u32;
-		offsets[i] = gbm_bo_get_offset(bo, i);
-		modifiers[i] = modifiers[0];
+	if (gbm_bo_get_modifier && gbm_bo_get_plane_count &&
+	    gbm_bo_get_stride_for_plane && gbm_bo_get_offset) {
+
+		uint64_t modifiers[4] = {0};
+		modifiers[0] = gbm_bo_get_modifier(bo);
+		const int num_planes = gbm_bo_get_plane_count(bo);
+		for (int i = 0; i < num_planes; i++) {
+			strides[i] = gbm_bo_get_stride_for_plane(bo, i);
+			handles[i] = gbm_bo_get_handle(bo).u32;
+			offsets[i] = gbm_bo_get_offset(bo, i);
+			modifiers[i] = modifiers[0];
+		}
+
+		if (modifiers[0]) {
+			flags = DRM_MODE_FB_MODIFIERS;
+			printf("Using modifier %" PRIx64 "\n", modifiers[0]);
+		}
+
+		ret = drmModeAddFB2WithModifiers(drm_fd, width, height,
+				format, handles, strides, offsets,
+				modifiers, &fb->fb_id, flags);
 	}
 
-	if (modifiers[0]) {
-		flags = DRM_MODE_FB_MODIFIERS;
-		printf("Using modifier %" PRIx64 "\n", modifiers[0]);
-	}
-
-	ret = drmModeAddFB2WithModifiers(drm_fd, width, height,
-			format, handles, strides, offsets,
-			modifiers, &fb->fb_id, flags);
-#endif
 	if (ret) {
 		if (flags)
 			fprintf(stderr, "Modifiers failed!\n");

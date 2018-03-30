@@ -49,21 +49,5 @@ if test "x$HAVE_GST" = "xyes"; then
 fi
 AM_CONDITIONAL(ENABLE_GST, [test "x$HAVE_GST" = "xyes"])
 
-AC_CHECK_LIB([gbm], [gbm_bo_get_modifier], [gbm_modifiers=yes], [])
-
-AC_ARG_ENABLE([gbm-modifiers],
-	      [AS_HELP_STRING([--enable-gbm-modifiers],
-	          [enable using GBM modifiers @<:@default=auto@:>@])],
-	      [enable_gbm_modifiers="$enableval"],
-	      [enable_gbm_modifiers=auto])
-
-if test "x$enable_gbm_modifiers" = xyes -a "x$gbm_modifiers" != xyes; then
-	AC_MSG_ERROR([Cannot find gbm modifier supported mesa])
-fi
-
-if test "x$enable_gbm_modifiers" = xyes; then
-	AC_DEFINE(HAVE_GBM_MODIFIERS, 1, [Define if you can use GBM properties.])
-fi
-
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

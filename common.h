@@ -57,6 +57,8 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformPixmapSurfaceEXT (EGLDisplay dpy,
 #endif
 #endif /* EGL_EXT_platform_base */
 
+#define WEAK __attribute__((weak))
+
 struct gbm {
 	struct gbm_device *dev;
 	struct gbm_surface *surface;

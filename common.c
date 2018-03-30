@@ -33,23 +33,33 @@
 
 static struct gbm gbm;
 
+WEAK struct gbm_surface *
+gbm_surface_create_with_modifiers(struct gbm_device *gbm,
+                                  uint32_t width, uint32_t height,
+                                  uint32_t format,
+                                  const uint64_t *modifiers,
+                                  const unsigned int count);
+
 const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 {
 	gbm.dev = gbm_create_device(drm_fd);
 	gbm.format = GBM_FORMAT_XRGB8888;
 
-#ifndef HAVE_GBM_MODIFIERS
-	if (modifier != DRM_FORMAT_MOD_LINEAR) {
-		fprintf(stderr, "Modifiers requested but support isn't available\n");
-		return NULL;
+	if (gbm_surface_create_with_modifiers) {
+		gbm.surface = gbm_surface_create_with_modifiers(gbm.dev, w, h,
+								gbm.format,
+								&modifier, 1);
+
+	} else {
+		if (modifier != DRM_FORMAT_MOD_LINEAR) {
+			fprintf(stderr, "Modifiers requested but support isn't available\n");
+			return NULL;
+		}
+		gbm.surface = gbm_surface_create(gbm.dev, w, h,
+						gbm.format,
+						GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
+
 	}
-	gbm.surface = gbm_surface_create(gbm.dev, w, h,
-			gbm.format,
-			GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
-#else
-	gbm.surface = gbm_surface_create_with_modifiers(gbm.dev, w, h,
-			gbm.format, &modifier, 1);
-#endif
 
 	if (!gbm.surface) {
 		printf("failed to create gbm surface\n");
