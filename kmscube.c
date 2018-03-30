@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 	const char *device = "/dev/dri/card0";
 	const char *video = NULL;
 	enum mode mode = SMOOTH;
-	uint64_t modifier = DRM_FORMAT_MOD_INVALID;
+	uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
 	int atomic = 0;
 	int opt;
 
