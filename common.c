@@ -44,13 +44,16 @@ const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
 {
 	gbm.dev = gbm_create_device(drm_fd);
 	gbm.format = GBM_FORMAT_XRGB8888;
+	gbm.surface = NULL;
 
 	if (gbm_surface_create_with_modifiers) {
 		gbm.surface = gbm_surface_create_with_modifiers(gbm.dev, w, h,
 								gbm.format,
 								&modifier, 1);
 
-	} else {
+	}
+
+	if (!gbm.surface) {
 		if (modifier != DRM_FORMAT_MOD_LINEAR) {
 			fprintf(stderr, "Modifiers requested but support isn't available\n");
 			return NULL;
