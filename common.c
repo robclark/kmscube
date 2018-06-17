@@ -161,7 +161,7 @@ out:
 	return true;
 }
 
-int init_egl(struct egl *egl, const struct gbm *gbm)
+int init_egl(struct egl *egl, const struct gbm *gbm, int samples)
 {
 	EGLint major, minor;
 
@@ -170,13 +170,14 @@ int init_egl(struct egl *egl, const struct gbm *gbm)
 		EGL_NONE
 	};
 
-	static const EGLint config_attribs[] = {
+	const EGLint config_attribs[] = {
 		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
 		EGL_RED_SIZE, 1,
 		EGL_GREEN_SIZE, 1,
 		EGL_BLUE_SIZE, 1,
 		EGL_ALPHA_SIZE, 0,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_SAMPLES, samples,
 		EGL_NONE
 	};
 	const char *egl_exts_client, *egl_exts_dpy, *gl_exts;

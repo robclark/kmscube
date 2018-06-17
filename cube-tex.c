@@ -569,13 +569,13 @@ static void draw_cube_tex(unsigned i)
 	glDrawArrays(GL_TRIANGLE_STRIP, 20, 4);
 }
 
-const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode)
+const struct egl * init_cube_tex(const struct gbm *gbm, enum mode mode, int samples)
 {
 	const char *fragment_shader_source = (mode == NV12_2IMG) ?
 			fragment_shader_source_2img : fragment_shader_source_1img;
 	int ret;
 
-	ret = init_egl(&gl.egl, gbm);
+	ret = init_egl(&gl.egl, gbm, samples);
 	if (ret)
 		return NULL;
 

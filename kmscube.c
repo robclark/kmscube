@@ -50,6 +50,7 @@ static const struct option longopts[] = {
 	{"device", required_argument, 0, 'D'},
 	{"mode",   required_argument, 0, 'M'},
 	{"modifier", required_argument, 0, 'm'},
+	{"samples",  required_argument, 0, 's'},
 	{"video",  required_argument, 0, 'V'},
 	{0, 0, 0, 0}
 };
@@ -67,6 +68,7 @@ static void usage(const char *name)
 			"        nv12-2img -  yuv textured (color conversion in shader)\n"
 			"        nv12-1img -  yuv textured (single nv12 texture)\n"
 			"    -m, --modifier=MODIFIER  hardcode the selected modifier\n"
+			"    -s, --samples=N          use MSAA\n"
 			"    -V, --video=FILE         video textured cube\n",
 			name);
 }
@@ -77,6 +79,7 @@ int main(int argc, char *argv[])
 	const char *video = NULL;
 	enum mode mode = SMOOTH;
 	uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+	int samples = 0;
 	int atomic = 0;
 	int opt;
 
@@ -111,6 +114,9 @@ int main(int argc, char *argv[])
 		case 'm':
 			modifier = strtoull(optarg, NULL, 0);
 			break;
+		case 's':
+			samples = strtoul(optarg, NULL, 0);
+			break;
 		case 'V':
 			mode = VIDEO;
 			video = optarg;
@@ -138,11 +144,11 @@ int main(int argc, char *argv[])
 	}
 
 	if (mode == SMOOTH)
-		egl = init_cube_smooth(gbm);
+		egl = init_cube_smooth(gbm, samples);
 	else if (mode == VIDEO)
-		egl = init_cube_video(gbm, video);
+		egl = init_cube_video(gbm, video, samples);
 	else
-		egl = init_cube_tex(gbm, mode);
+		egl = init_cube_tex(gbm, mode, samples);
 
 	if (!egl) {
 		printf("failed to initialize EGL\n");

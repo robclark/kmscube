@@ -301,12 +301,12 @@ static void draw_cube_video(unsigned i)
 	gl.last_fence = egl->eglCreateSyncKHR(egl->display, EGL_SYNC_FENCE_KHR, NULL);
 }
 
-const struct egl * init_cube_video(const struct gbm *gbm, const char *filenames)
+const struct egl * init_cube_video(const struct gbm *gbm, const char *filenames, int samples)
 {
 	char *fnames, *s;
 	int ret, i = 0;
 
-	ret = init_egl(&gl.egl, gbm);
+	ret = init_egl(&gl.egl, gbm, samples);
 	if (ret)
 		return NULL;
 

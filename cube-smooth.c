@@ -218,11 +218,11 @@ static void draw_cube_smooth(unsigned i)
 	glDrawArrays(GL_TRIANGLE_STRIP, 20, 4);
 }
 
-const struct egl * init_cube_smooth(const struct gbm *gbm)
+const struct egl * init_cube_smooth(const struct gbm *gbm, int samples)
 {
 	int ret;
 
-	ret = init_egl(&gl.egl, gbm);
+	ret = init_egl(&gl.egl, gbm, samples);
 	if (ret)
 		return NULL;
 
