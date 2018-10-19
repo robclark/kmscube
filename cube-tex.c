@@ -363,6 +363,7 @@ static int init_tex_rgba(void)
 	egl->glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, img);
 
 	egl->eglDestroyImageKHR(egl->display, img);
+	close(fd);
 
 	return 0;
 }
@@ -429,6 +430,7 @@ static int init_tex_nv12_2img(void)
 	egl->glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, img_y);
 
 	egl->eglDestroyImageKHR(egl->display, img_y);
+	close(fd_y);
 
 	/* UV plane texture: */
 	img_uv = egl->eglCreateImageKHR(egl->display, EGL_NO_CONTEXT,
@@ -443,6 +445,7 @@ static int init_tex_nv12_2img(void)
 	egl->glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, img_uv);
 
 	egl->eglDestroyImageKHR(egl->display, img_uv);
+	close(fd_uv);
 
 	return 0;
 }
@@ -499,6 +502,8 @@ static int init_tex_nv12_1img(void)
 	egl->glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, img);
 
 	egl->eglDestroyImageKHR(egl->display, img);
+	close(fd_y);
+	close(fd_uv);
 
 	return 0;
 }
