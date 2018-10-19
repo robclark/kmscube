@@ -1,0 +1,53 @@
+.artifacts-autotools: &artifacts-autotools
+  when: always
+  paths:
+    - _build/*.log
+
+.autotools-build: &autotools-build
+  - mkdir _build
+  - cd _build
+  - ../autogen.sh
+  - make
+
+latest-autotools:
+  stage: build
+  image: base/archlinux:latest
+  artifacts: *artifacts-autotools
+  before_script:
+    - pacman -Syu --noconfirm --needed
+        base-devel
+        libdrm
+        mesa
+        gstreamer
+        gst-plugins-base
+        git # autogen.sh depends on git
+  script: *autotools-build
+
+oldest-autotools:
+  stage: build
+  image: debian:stable
+  artifacts: *artifacts-autotools
+  before_script:
+    - printf > /etc/dpkg/dpkg.cfg.d/99-exclude-cruft "%s\n"
+        'path-exclude=/usr/share/doc/*'
+        'path-exclude=/usr/share/man/*'
+    - printf > /usr/sbin/policy-rc.d "%s\n"
+        '#!/bin/sh'
+        'exit 101'
+    - chmod +x /usr/sbin/policy-rc.d
+    - apt-get update
+    - apt-get -y --no-install-recommends install
+        build-essential
+        automake
+        autoconf
+        libtool
+        pkg-config
+        libdrm-dev
+        libgbm-dev
+        libegl1-mesa-dev
+        libgles2-mesa-dev
+        libgstreamer1.0-dev
+        gstreamer1.0-plugins-base
+        gstreamer1.0-plugins-base-apps
+        git # autogen.sh depends on git
+  script: *autotools-build
