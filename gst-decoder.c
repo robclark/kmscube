@@ -490,7 +490,7 @@ buffer_to_image(struct decoder *dec, GstBuffer *buf)
 	}
 
 	/* Cleanup */
-	for (unsigned i = 0; i < nmems; i++)
+	for (unsigned i = 0; i < nplanes; i++)
 		close(planes[i].fd);
 
 	return image;
