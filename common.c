@@ -296,6 +296,7 @@ int create_program(const char *vs_src, const char *fs_src)
 			log = malloc(ret);
 			glGetShaderInfoLog(vertex_shader, ret, NULL, log);
 			printf("%s", log);
+			free(log);
 		}
 
 		return -1;
@@ -317,6 +318,7 @@ int create_program(const char *vs_src, const char *fs_src)
 			log = malloc(ret);
 			glGetShaderInfoLog(fragment_shader, ret, NULL, log);
 			printf("%s", log);
+			free(log);
 		}
 
 		return -1;
@@ -347,6 +349,7 @@ int link_program(unsigned program)
 			log = malloc(ret);
 			glGetProgramInfoLog(program, ret, NULL, log);
 			printf("%s", log);
+			free(log);
 		}
 
 		return -1;
