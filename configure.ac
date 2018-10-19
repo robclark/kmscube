@@ -23,7 +23,7 @@
 
 # Initialize Autoconf
 AC_PREREQ([2.60])
-AC_INIT([kmscube], [0.0.1], [https://cgit.freedesktop.org/mesa/kmscube/], [kmscube])
+AC_INIT([kmscube], [0.0.1], [https://gitlab.freedesktop.org/mesa/kmscube/], [kmscube])
 AC_CONFIG_AUX_DIR([build-aux])
 
 # Initialize Automake
