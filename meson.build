@@ -32,7 +32,7 @@ if get_option('c_std') != 'c99'
   error('c_std must be c99')
 endif
 
-sources = [
+sources = files(
   'common.c',
   'cube-smooth.c',
   'cube-tex.c',
@@ -43,7 +43,7 @@ sources = [
   'frame-512x512-NV12.c',
   'frame-512x512-RGBA.c',
   'kmscube.c',
-]
+)
 
 cc = meson.get_compiler('c')
 dep_m = cc.find_library('m', required : false)
@@ -83,7 +83,7 @@ if with_gst != 'false'
 
   if with_gst != 'false'
     dep_common += dep_gst
-    sources += ['cube-video.c', 'gst-decoder.c']
+    sources += files('cube-video.c', 'gst-decoder.c')
     add_project_arguments('-DHAVE_GST', language : 'c')
   endif
 endif
