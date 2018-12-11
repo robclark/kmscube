@@ -25,20 +25,12 @@ project(
   'c',
   version : '0.0.1',
   license : 'MIT',
-  default_options : ['c_std=c99']
+  default_options : ['c_std=c99', 'warning_level=2']
 )
 
 if get_option('c_std') != 'c99'
   error('c_std must be c99')
 endif
-
-cc = meson.get_compiler('c')
-add_project_arguments(
-  cc.get_supported_arguments([
-    '-Wextra'
-  ]),
-  language: 'c'
-)
 
 sources = [
   'common.c',
@@ -53,6 +45,7 @@ sources = [
   'kmscube.c',
 ]
 
+cc = meson.get_compiler('c')
 dep_m = cc.find_library('m', required : false)
 dep_threads = dependency('threads', required : true)
 dep_libdrm = dependency('libdrm', version : '>=2.4.71', required : true)
