@@ -47,11 +47,11 @@ sources = files(
 
 cc = meson.get_compiler('c')
 dep_m = cc.find_library('m', required : false)
-dep_threads = dependency('threads', required : true)
-dep_libdrm = dependency('libdrm', version : '>=2.4.71', required : true)
-dep_gbm = dependency('gbm', version : '>=13.0', required : true)
-dep_egl = dependency('egl', required : true)
-dep_gles2 = dependency('glesv2', required : true)
+dep_threads = dependency('threads')
+dep_libdrm = dependency('libdrm', version : '>=2.4.71')
+dep_gbm = dependency('gbm', version : '>=13.0')
+dep_egl = dependency('egl')
+dep_gles2 = dependency('glesv2')
 
 dep_common = [dep_m, dep_threads, dep_libdrm, dep_gbm, dep_egl, dep_gles2]
 
