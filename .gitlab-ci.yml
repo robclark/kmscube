@@ -67,6 +67,7 @@ oldest-meson:
         libegl1-mesa-dev
         libgles2-mesa-dev
         libgstreamer1.0-dev
+        libgstreamer-plugins-base1.0-dev
         gstreamer1.0-plugins-base
         gstreamer1.0-plugins-base-apps
         ninja-build
@@ -99,6 +100,7 @@ oldest-autotools:
         libegl1-mesa-dev
         libgles2-mesa-dev
         libgstreamer1.0-dev
+        libgstreamer-plugins-base1.0-dev
         gstreamer1.0-plugins-base
         gstreamer1.0-plugins-base-apps
         git # autogen.sh depends on git
