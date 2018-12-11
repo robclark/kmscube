@@ -67,9 +67,9 @@ if with_gst != 'false'
   ]
   _required = with_gst == 'true'
   foreach _dep : _dep_names
-    dep_gst += [dependency(_dep, version : '>= 1.6.0', required : _required)]
+    dep_gst += dependency(_dep, version : '>= 1.6.0', required : _required)
   endforeach
-  dep_gst += [dependency('glib-2.0', required : _required)]
+  dep_gst += dependency('glib-2.0', required : _required)
 
   # See if we found everything we needed
   if with_gst == 'auto'
