@@ -1,7 +1,5 @@
 option(
   'gstreamer',
-  type : 'combo',
-  value : 'auto',
-  choices : ['auto', 'true', 'false'],
+  type : 'feature',
   description : 'Enable support for gstreamer and cube-video'
 )

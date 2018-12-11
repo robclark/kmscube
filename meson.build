@@ -57,42 +57,33 @@ dep_gles2 = dependency('glesv2')
 dep_common = [dep_m, dep_threads, dep_libdrm, dep_gbm, dep_egl, dep_gles2]
 
 dep_gst = []
-with_gst = get_option('gstreamer')
-if with_gst != 'false'
-  _dep_names = [
-    'gstreamer-1.0',
-    'gstreamer-plugins-base-1.0',
-    'gstreamer-app-1.0',
-    'gstreamer-allocators-1.0',
-    'gstreamer-video-1.0',
-  ]
-  _required = with_gst == 'true'
-  foreach _dep : _dep_names
-    dep_gst += dependency(_dep, version : '>= 1.6.0', required : _required)
-  endforeach
-  dep_gst += dependency('glib-2.0', required : _required)
+foreach _dep : [
+  'gstreamer-1.0',
+  'gstreamer-plugins-base-1.0',
+  'gstreamer-app-1.0',
+  'gstreamer-allocators-1.0',
+  'gstreamer-video-1.0',
+]
+  dep_gst += dependency(_dep, version : '>= 1.6.0', required : get_option('gstreamer'))
+endforeach
+dep_gst += dependency('glib-2.0', required : get_option('gstreamer'))
 
-  # See if we found everything we needed
-  if with_gst == 'auto'
-    foreach _dep : dep_gst
-      if not _dep.found()
-        with_gst = 'false'
-        break
-      endif
-    endforeach
+# See if we found everything we needed
+with_gst = true
+foreach _dep : dep_gst
+  if not _dep.found()
+    with_gst = false
+    break
   endif
+endforeach
 
-  if with_gst != 'false'
-    dep_common += dep_gst
-    sources += files('cube-video.c', 'gst-decoder.c')
-    add_project_arguments('-DHAVE_GST', language : 'c')
-  endif
+if with_gst
+  dep_common += dep_gst
+  sources += files('cube-video.c', 'gst-decoder.c')
+  add_project_arguments('-DHAVE_GST', language : 'c')
+  message('Building with gstreamer support')
+else
+  message('Building without gstreamer support')
 endif
 
 executable('kmscube', sources, dependencies : dep_common, install : true)
-
-if with_gst == 'false'
-  message('Building without gstreamer support')
-else
-  message('Building with gstreamer support')
-endif
