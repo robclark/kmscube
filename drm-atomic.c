@@ -391,7 +391,7 @@ const struct drm * init_drm_atomic(const char *device)
 			return NULL;						\
 		}								\
 		drm.type->props_info = calloc(drm.type->props->count_props,	\
-				sizeof(drm.type->props_info));			\
+				sizeof(*drm.type->props_info));			\
 		for (i = 0; i < drm.type->props->count_props; i++) {		\
 			drm.type->props_info[i] = drmModeGetProperty(drm.fd,	\
 					drm.type->props->props[i]);		\
