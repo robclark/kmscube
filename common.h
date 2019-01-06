@@ -24,7 +24,9 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 
+#ifndef GL_ES_VERSION_2_0
 #include <GLES2/gl2.h>
+#endif
 #include <GLES2/gl2ext.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -34,6 +36,18 @@
 #include <stdbool.h>
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+/* from mesa's util/macros.h: */
+#define MIN2( A, B )   ( (A)<(B) ? (A) : (B) )
+#define MAX2( A, B )   ( (A)>(B) ? (A) : (B) )
+#define MIN3( A, B, C ) ((A) < (B) ? MIN2(A, C) : MIN2(B, C))
+#define MAX3( A, B, C ) ((A) > (B) ? MAX2(A, C) : MAX2(B, C))
+
+static inline unsigned
+u_minify(unsigned value, unsigned levels)
+{
+	return MAX2(1, value >> levels);
+}
 
 #ifndef DRM_FORMAT_MOD_LINEAR
 #define DRM_FORMAT_MOD_LINEAR 0
