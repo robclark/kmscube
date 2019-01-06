@@ -87,3 +87,11 @@ else
 endif
 
 executable('kmscube', sources, dependencies : dep_common, install : true)
+
+
+executable('texturator', files(
+	'common.c',
+	'drm-legacy.c',
+	'drm-common.c',
+	'texturator.c',
+), dependencies : dep_common, install : true)

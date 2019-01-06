@@ -21,7 +21,7 @@
 #  SOFTWARE.
 #
 
-bin_PROGRAMS = kmscube
+bin_PROGRAMS = kmscube texturator
 
 kmscube_LDADD = \
 	$(DRM_LIBS) \
@@ -59,3 +59,12 @@ kmscube_LDADD += $(GST_LIBS)
 kmscube_CFLAGS += $(GST_CFLAGS)
 kmscube_SOURCES += cube-video.c gst-decoder.c
 endif
+
+texturator_LDADD = $(kmscube_LDADD)
+texturator_CFLAGS = $(kmscube_CFLAGS)
+texturator_SOURCES = \
+	common.c \
+	common.h \
+	drm-common.c \
+	drm-legacy.c \
+	texturator.c
