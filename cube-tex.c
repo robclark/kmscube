@@ -30,8 +30,6 @@
 #include "common.h"
 #include "esUtil.h"
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-
 struct {
 	struct egl egl;
 
