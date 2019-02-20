@@ -41,7 +41,7 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:M:m:V:";
+static const char *shortopts = "AD:M:m:V:v:";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'A'},
@@ -50,12 +50,13 @@ static const struct option longopts[] = {
 	{"modifier", required_argument, 0, 'm'},
 	{"samples",  required_argument, 0, 's'},
 	{"video",  required_argument, 0, 'V'},
+	{"vmode",  required_argument, 0, 'v'},
 	{0, 0, 0, 0}
 };
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-ADMmV]\n"
+	printf("Usage: %s [-ADMmVv]\n"
 			"\n"
 			"options:\n"
 			"    -A, --atomic             use atomic modesetting and fencing\n"
@@ -67,7 +68,9 @@ static void usage(const char *name)
 			"        nv12-1img -  yuv textured (single nv12 texture)\n"
 			"    -m, --modifier=MODIFIER  hardcode the selected modifier\n"
 			"    -s, --samples=N          use MSAA\n"
-			"    -V, --video=FILE         video textured cube\n",
+			"    -V, --video=FILE         video textured cube\n"
+			"    -v, --vmode=VMODE        specify the video mode in the format\n"
+			"                             <mode>[-<vrefresh>]\n",
 			name);
 }
 
@@ -75,11 +78,15 @@ int main(int argc, char *argv[])
 {
 	const char *device = "/dev/dri/card0";
 	const char *video = NULL;
+	char mode_str[DRM_DISPLAY_MODE_LEN] = "";
+	char *p;
 	enum mode mode = SMOOTH;
 	uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
 	int samples = 0;
 	int atomic = 0;
 	int opt;
+	unsigned int len;
+	unsigned int vrefresh = 0;
 
 #ifdef HAVE_GST
 	gst_init(&argc, &argv);
@@ -119,6 +126,19 @@ int main(int argc, char *argv[])
 			mode = VIDEO;
 			video = optarg;
 			break;
+		case 'v':
+			p = strchr(optarg, '-');
+			if (p == NULL) {
+				len = strlen(optarg);
+			} else {
+				vrefresh = strtoul(p + 1, NULL, 0);
+				len = p - optarg;
+			}
+			if (len > sizeof(mode_str) - 1)
+				len = sizeof(mode_str) - 1;
+			strncpy(mode_str, optarg, len);
+			mode_str[len] = '\0';
+			break;
 		default:
 			usage(argv[0]);
 			return -1;
@@ -126,9 +146,9 @@ int main(int argc, char *argv[])
 	}
 
 	if (atomic)
-		drm = init_drm_atomic(device);
+		drm = init_drm_atomic(device, mode_str, vrefresh);
 	else
-		drm = init_drm_legacy(device);
+		drm = init_drm_legacy(device, mode_str, vrefresh);
 	if (!drm) {
 		printf("failed to initialize %s DRM\n", atomic ? "atomic" : "legacy");
 		return -1;

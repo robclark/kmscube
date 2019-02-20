@@ -337,12 +337,12 @@ static int get_plane_id(void)
 	return ret;
 }
 
-const struct drm * init_drm_atomic(const char *device)
+const struct drm * init_drm_atomic(const char *device, const char *mode_str, unsigned int vrefresh)
 {
 	uint32_t plane_id;
 	int ret;
 
-	ret = init_drm(&drm, device);
+	ret = init_drm(&drm, device, mode_str, vrefresh);
 	if (ret)
 		return NULL;
 

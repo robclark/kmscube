@@ -160,7 +160,7 @@ static uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes 
 	return -1;
 }
 
-int init_drm(struct drm *drm, const char *device)
+int init_drm(struct drm *drm, const char *device, const char *mode_str, unsigned int vrefresh)
 {
 	drmModeRes *resources;
 	drmModeConnector *connector = NULL;
@@ -199,19 +199,37 @@ int init_drm(struct drm *drm, const char *device)
 		return -1;
 	}
 
-	/* find preferred mode or the highest resolution mode: */
-	for (i = 0, area = 0; i < connector->count_modes; i++) {
-		drmModeModeInfo *current_mode = &connector->modes[i];
+	/* find user requested mode: */
+	if (mode_str && *mode_str) {
+		for (i = 0; i < connector->count_modes; i++) {
+			drmModeModeInfo *current_mode = &connector->modes[i];
 
-		if (current_mode->type & DRM_MODE_TYPE_PREFERRED) {
-			drm->mode = current_mode;
-			break;
+			if (strcmp(current_mode->name, mode_str) == 0) {
+				if (vrefresh == 0 || current_mode->vrefresh == vrefresh) {
+					drm->mode = current_mode;
+					break;
+				}
+			}
 		}
+		if (!drm->mode)
+			printf("requested mode not found, using default mode!\n");
+	}
 
-		int current_area = current_mode->hdisplay * current_mode->vdisplay;
-		if (current_area > area) {
-			drm->mode = current_mode;
-			area = current_area;
+	/* find preferred mode or the highest resolution mode: */
+	if (!drm->mode) {
+		for (i = 0, area = 0; i < connector->count_modes; i++) {
+			drmModeModeInfo *current_mode = &connector->modes[i];
+
+			if (current_mode->type & DRM_MODE_TYPE_PREFERRED) {
+				drm->mode = current_mode;
+				break;
+			}
+
+			int current_area = current_mode->hdisplay * current_mode->vdisplay;
+			if (current_area > area) {
+				drm->mode = current_mode;
+				area = current_area;
+			}
 		}
 	}
 

@@ -928,7 +928,7 @@ int main(int argc, char *argv[])
 	print_summary();
 
 	/* no real need for atomic here: */
-	drm = init_drm_legacy(device);
+	drm = init_drm_legacy(device, NULL, 0);
 	if (!drm) {
 		printf("failed to initialize DRM\n");
 		return -1;
