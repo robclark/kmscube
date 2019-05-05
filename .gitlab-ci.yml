@@ -20,7 +20,7 @@
 
 latest-meson:
   stage: build
-  image: base/archlinux:latest
+  image: archlinux/base:latest
   artifacts: *artifacts-meson
   before_script:
     - pacman -Syu --noconfirm --needed
@@ -34,7 +34,7 @@ latest-meson:
 
 latest-autotools:
   stage: build
-  image: base/archlinux:latest
+  image: archlinux/base:latest
   artifacts: *artifacts-autotools
   before_script:
     - pacman -Syu --noconfirm --needed
