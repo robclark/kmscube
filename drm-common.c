@@ -205,6 +205,7 @@ int init_drm(struct drm *drm, const char *device)
 
 		if (current_mode->type & DRM_MODE_TYPE_PREFERRED) {
 			drm->mode = current_mode;
+			break;
 		}
 
 		int current_area = current_mode->hdisplay * current_mode->vdisplay;
