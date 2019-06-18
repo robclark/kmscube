@@ -795,13 +795,14 @@ static void print_summary(void)
 	printf("FS:\n%s\n", get_fs());
 }
 
-static const char *shortopts = "D:e:fsz";
+static const char *shortopts = "D:e:fsv:z";
 
 static const struct option longopts[] = {
 	{"device", required_argument, 0, 'D'},
 	{"errors", required_argument, 0, 'e'},
 	{"full",   no_argument,       0, 'f'},
 	{"stop",   no_argument,       0, 's'},
+	{"vmode",  required_argument, 0, 'v'},
 	{"zoom",   no_argument,       0, 'z'},
 #ifdef HAVE_LIBPNG
 	{"png",    no_argument,       0, 'p'},
@@ -811,13 +812,15 @@ static const struct option longopts[] = {
 
 static void usage(const char *name)
 {
-	printf("Usage: %1$s [-Dz] <target> <format> <minsize> [<maxsize>]\n"
+	printf("Usage: %1$s [-Dvz] <target> <format> <minsize> [<maxsize>]\n"
 		"\n"
 		"options:\n"
 		"    -D, --device=DEVICE  use the given device\n"
 		"    -e, --errors=N       stop after N frames with errors (default 5)\n"
 		"    -f, --full           check all pixels (do not stop after first faulty pixel)\n"
 		"    -s, --stop           exit after testing all sizes\n"
+		"    -v, --vmode=VMODE    specify the video mode in the format\n"
+		"                         <mode>[-<vrefresh>]\n"
 		"    -z, --zoom           increase zoom (can be specified multiple times)\n"
 #ifdef HAVE_LIBPNG
 		"    -p, --png            capture the screen to a png image\n"
@@ -853,7 +856,11 @@ static void parse_dims(const char *argv0, const char *sizestr, struct size *size
 int main(int argc, char *argv[])
 {
 	const char *device = "/dev/dri/card0";
+	char mode_str[DRM_DISPLAY_MODE_LEN] = "";
+	char *p;
 	int ret, opt;
+	unsigned int len;
+	unsigned int vrefresh = 0;
 
 	while ((opt = getopt_long_only(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (opt) {
@@ -868,6 +875,19 @@ int main(int argc, char *argv[])
 			break;
 		case 's':
 			stop = true;
+			break;
+		case 'v':
+			p = strchr(optarg, '-');
+			if (p == NULL) {
+				len = strlen(optarg);
+			} else {
+				vrefresh = strtoul(p + 1, NULL, 0);
+				len = p - optarg;
+			}
+			if (len > sizeof(mode_str) - 1)
+				len = sizeof(mode_str) - 1;
+			strncpy(mode_str, optarg, len);
+			mode_str[len] = '\0';
 			break;
 		case 'z':
 			zoom++;
@@ -928,7 +948,7 @@ int main(int argc, char *argv[])
 	print_summary();
 
 	/* no real need for atomic here: */
-	drm = init_drm_legacy(device, NULL, 0);
+	drm = init_drm_legacy(device, mode_str, vrefresh);
 	if (!drm) {
 		printf("failed to initialize DRM\n");
 		return -1;
