@@ -74,6 +74,10 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformPixmapSurfaceEXT (EGLDisplay dpy,
 #endif
 #endif /* EGL_EXT_platform_base */
 
+#ifndef EGL_VERSION_1_5
+#define EGLImage EGLImageKHR
+#endif /* EGL_VERSION_1_5 */
+
 #define WEAK __attribute__((weak))
 
 /* Define tokens from EGL_EXT_image_dma_buf_import_modifiers */
