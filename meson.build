@@ -73,7 +73,6 @@ with_gst = true
 foreach _dep : dep_gst
   if not _dep.found()
     with_gst = false
-    break
   endif
 endforeach
 
