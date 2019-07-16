@@ -30,6 +30,7 @@ latest-meson:
         mesa
         gstreamer
         gst-plugins-base
+        libpng
   script: *meson-build
 
 latest-autotools:
@@ -43,6 +44,7 @@ latest-autotools:
         mesa
         gstreamer
         gst-plugins-base
+        libpng
         git # autogen.sh depends on git
   script: *autotools-build
 
@@ -72,6 +74,7 @@ oldest-meson:
         gstreamer1.0-plugins-base-apps
         ninja-build
         python3 python3-pip
+        libpng-dev
     - pip3 install wheel setuptools
     - pip3 install meson==0.47
   script: *meson-build
@@ -103,5 +106,6 @@ oldest-autotools:
         libgstreamer-plugins-base1.0-dev
         gstreamer1.0-plugins-base
         gstreamer1.0-plugins-base-apps
+        libpng-dev
         git # autogen.sh depends on git
   script: *autotools-build

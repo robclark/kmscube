@@ -32,6 +32,10 @@
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 
+#ifdef HAVE_LIBPNG
+#include <png.h>
+#endif
+
 #include "common.h"
 #include "drm-common.h"
 
@@ -91,6 +95,7 @@ static int error_frames;
 static int zoom = 1;
 static bool full;
 static bool stop;
+static bool png;
 static GLenum target;
 static struct size {
 	unsigned x, y, z;
@@ -658,6 +663,41 @@ static bool check_quads(void)
 	return err;
 }
 
+#ifdef HAVE_LIBPNG
+static void write_png_file(char *filename, int width, int height, uint8_t *buffer)
+{
+	FILE *fp = fopen(filename, "wb");
+	png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	png_infop info = png_create_info_struct(png);
+
+	png_init_io(png, fp);
+
+	png_set_IHDR(
+		png,
+		info,
+		width, height,
+		8,
+		PNG_COLOR_TYPE_RGBA,
+		PNG_INTERLACE_NONE,
+		PNG_COMPRESSION_TYPE_BASE,
+		PNG_FILTER_TYPE_BASE
+	);
+	png_write_info(png, info);
+
+	png_bytepp rows = (png_bytepp)png_malloc(png, height * sizeof(png_bytep));
+	for (int i = 0; i < height; i++)
+    	rows[i] = (png_bytep)(buffer + (height - i - 1) * width * 4);
+
+	png_write_image(png, rows);
+
+	png_write_end(png, NULL);
+
+	fclose(fp);
+	png_destroy_write_struct(&png, &info);
+  	free(rows);
+}
+#endif
+
 static bool needs_check = true;
 
 static void draw_and_check_quads(unsigned frame)
@@ -704,6 +744,17 @@ static void draw_and_check_quads(unsigned frame)
 		if (err)
 			error_frames++;
 		needs_check = false;
+
+#ifdef HAVE_LIBPNG
+		if (png) {
+			uint8_t rgba[gbm->width*gbm->height*4];
+			glReadPixels(0, 0, gbm->width, gbm->height, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+			static char buf[64];
+			sprintf(buf, "kmscube-texturator-%dx%dx%d:%s.png",
+					size.x, size.y, size.z, fmt->name);
+			write_png_file(buf, gbm->width, gbm->height, rgba);
+		}
+#endif
 	}
 
 	/* if we've hit max # of error frames, stop growing: */
@@ -752,6 +803,9 @@ static const struct option longopts[] = {
 	{"full",   no_argument,       0, 'f'},
 	{"stop",   no_argument,       0, 's'},
 	{"zoom",   no_argument,       0, 'z'},
+#ifdef HAVE_LIBPNG
+	{"png",    no_argument,       0, 'p'},
+#endif
 	{0, 0, 0, 0}
 };
 
@@ -765,6 +819,9 @@ static void usage(const char *name)
 		"    -f, --full           check all pixels (do not stop after first faulty pixel)\n"
 		"    -s, --stop           exit after testing all sizes\n"
 		"    -z, --zoom           increase zoom (can be specified multiple times)\n"
+#ifdef HAVE_LIBPNG
+		"    -p, --png            capture the screen to a png image\n"
+#endif
 		"\n"
 		"where:\n"
 		"    <target>  is one of 2D/2DArray/3D\n"
@@ -815,6 +872,11 @@ int main(int argc, char *argv[])
 		case 'z':
 			zoom++;
 			break;
+#ifdef HAVE_LIBPNG
+		case 'p':
+			png = true;
+			break;
+#endif
 		default:
 			usage(argv[0]);
 		}
