@@ -169,7 +169,7 @@ enum type {
 
 static int enc_ls(int level, int slice)
 {
-	return ((level << 4) & 0xf0) | (slice & 0xf);
+	return ((level << 3) & 0x78) | (slice & 0x7);
 }
 
 static void * encode_BYTE(void *buf, int ncomp, int w, int h, int level, int slice)
@@ -177,8 +177,11 @@ static void * encode_BYTE(void *buf, int ncomp, int w, int h, int level, int sli
 	int8_t *ptr = buf;
 	int8_t val = enc_ls(level, slice) - 127;
 
-	for (int i = 0; i < (w*h*ncomp); i++)
-		*(ptr++) = val;
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < (w*ncomp); j++)
+			*(ptr++) = val;
+		val += (i & 1) ? -128 : 128;
+	}
 
 	return ptr;
 }
@@ -188,8 +191,11 @@ static void * encode_UNSIGNED_BYTE(void *buf, int ncomp, int w, int h, int level
 	uint8_t *ptr = buf;
 	uint8_t val = enc_ls(level, slice);
 
-	for (int i = 0; i < (w*h*ncomp); i++)
-		*(ptr++) = val;
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < (w*ncomp); j++)
+			*(ptr++) = val;
+		val += (i & 1) ? -128 : 128;
+	}
 
 	return ptr;
 }
@@ -197,10 +203,16 @@ static void * encode_UNSIGNED_BYTE(void *buf, int ncomp, int w, int h, int level
 static void * encode_FLOAT(void *buf, int ncomp, int w, int h, int level, int slice)
 {
 	float *ptr = buf;
-	float val = ((float)enc_ls(level, slice)) / 255.0;
+	int encoded_value = enc_ls(level, slice);
+	float original_value = ((float)encoded_value) / 255.0;
+	float complement_value = ((float)(encoded_value + 128)) / 255.0;
+	float val;
 
-	for (int i = 0; i < (w*h*ncomp); i++)
-		*(ptr++) = val;
+	for (int i = 0; i < h; i++) {
+		val = (i & 1) ? complement_value : original_value;
+		for (int j = 0; j < (w*ncomp); j++)
+			*(ptr++) = val;
+	}
 
 	return ptr;
 }
@@ -210,8 +222,11 @@ static void * encode_SHORT(void *buf, int ncomp, int w, int h, int level, int sl
 	int16_t *ptr = buf;
 	int16_t val = enc_ls(level, slice) - 127;
 
-	for (int i = 0; i < (w*h*ncomp); i++)
-		*(ptr++) = val;
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < (w*ncomp); j++)
+			*(ptr++) = val;
+		val += (i & 1) ? -128 : 128;
+	}
 
 	return ptr;
 }
@@ -221,8 +236,11 @@ static void * encode_UNSIGNED_SHORT(void *buf, int ncomp, int w, int h, int leve
 	uint16_t *ptr = buf;
 	uint16_t val = enc_ls(level, slice);
 
-	for (int i = 0; i < (w*h*ncomp); i++)
-		*(ptr++) = val;
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < (w*ncomp); j++)
+			*(ptr++) = val;
+		val += (i & 1) ? -128 : 128;
+	}
 
 	return ptr;
 }
@@ -232,9 +250,11 @@ static void * encode_INT(void *buf, int ncomp, int w, int h, int level, int slic
 	int32_t *ptr = buf;
 	int32_t val = enc_ls(level, slice) - 127;
 
-	for (int i = 0; i < (w*h*ncomp); i++)
-		*(ptr++) = val;
-
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < (w*ncomp); j++)
+			*(ptr++) = val;
+		val += (i & 1) ? -128 : 128;
+	}
 	return ptr;
 }
 
@@ -243,8 +263,11 @@ static void * encode_UNSIGNED_INT(void *buf, int ncomp, int w, int h, int level,
 	uint32_t *ptr = buf;
 	uint32_t val = enc_ls(level, slice);
 
-	for (int i = 0; i < (w*h*ncomp); i++)
-		*(ptr++) = val;
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < (w*ncomp); j++)
+			*(ptr++) = val;
+		val += (i & 1) ? -128 : 128;
+	}
 
 	return ptr;
 }
@@ -403,11 +426,12 @@ const char *fragment_shader_fmt =
 	"	%2$svec4 color = texelFetch(tex, ivec%3$d(v_texcoord), lod);\n"
 	"	%2$svec1 val = %4$s;                                        \n"
 	"	int converted = int(%5$s);                                  \n"
-	"	fragColor.rg = vec2(                                        \n"
-	"		float((converted >> 0) & 0xf) / 16.0,               \n"
-	"		float((converted >> 4) & 0xf) / 16.0                \n"
+	"	fragColor.rgb = vec3(                                       \n"
+	"		float((converted >> 0) & 0x7) /  8.0,               \n"
+	"		float((converted >> 3) & 0xf) / 16.0,               \n"
+	"		float((converted >> 7) & 0x1) *  0.25                \n"
 	"	);                                                          \n"
-	"	fragColor.ba = vec2(0.0, 1.0);                              \n"
+	"	fragColor.a = 1.0;                                          \n"
 	"}                                                                  \n";
 
 static const char *get_fs(void)
@@ -567,10 +591,11 @@ static void draw_quad(float x, float y, float w, float h, float tw, float th, in
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-static void extract_pix(uint8_t *rgba, int *slice, int *level)
+static void extract_pix(uint8_t *rgba, int *slice, int *level, bool *complemented)
 {
-	*slice = (((float)rgba[0]) / 255.0) * 16.0;
+	*slice = (((float)rgba[0]) / 255.0) * 8.0;
 	*level = (((float)rgba[1]) / 255.0) * 16.0;
+	*complemented = (((float)rgba[2]) / 255.0) / 0.25;
 }
 
 static bool probe_pix(int x, int y, int w, int h, int s, int m)
@@ -584,12 +609,13 @@ static bool probe_pix(int x, int y, int w, int h, int s, int m)
 	for (int i = 0; i < h; i++) {
 		for (int j = 0; j < w; j++) {
 			int slice, level;
+			bool complemented;
 
-			extract_pix((void *)(ptr++), &slice, &level);
-			if ((slice != s) || (level != m)) {
-				printf("%ux%ux%u:%s: error at: S:L=%d:%d, got %d:%d at pix %d,%d (of %dx%d)\n",
+			extract_pix((void *)(ptr++), &slice, &level, &complemented);
+			if ((slice != s) || (level != m) || (complemented != ((i / zoom) & 1))) {
+				printf("%ux%ux%u:%s: error at: S:L:C=%d:%d:%d, got %d:%d:%d at pix %d,%d (of %dx%d)\n",
 					size.x, size.y, size.z, fmt->name,
-					s, m, slice, level, j, i, w, h);
+					s, m, ((i / zoom) & 1), slice, level, complemented, j, i, w, h);
 				err = true;
 				if (!full)
 					return err;
