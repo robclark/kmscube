@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "drm-common.h"
@@ -160,21 +161,74 @@ static uint32_t find_crtc_for_connector(const struct drm *drm, const drmModeRes 
 	return -1;
 }
 
+static int get_resources(int fd, drmModeRes **resources)
+{
+	*resources = drmModeGetResources(fd);
+	if (*resources == NULL)
+		return -1;
+	return 0;
+}
+
+#define MAX_DRM_DEVICES 64
+
+static int find_drm_device(drmModeRes **resources)
+{
+	drmDevicePtr devices[MAX_DRM_DEVICES] = { NULL };
+	int num_devices, fd = -1;
+
+	num_devices = drmGetDevices2(0, devices, MAX_DRM_DEVICES);
+	if (num_devices < 0) {
+		printf("drmGetDevices2 failed: %s\n", strerror(-num_devices));
+		return -1;
+	}
+
+	for (int i = 0; i < num_devices; i++) {
+		drmDevicePtr device = devices[i];
+		int ret;
+
+		if (!(device->available_nodes & (1 << DRM_NODE_PRIMARY)))
+			continue;
+		/* OK, it's a primary device. If we can get the
+		 * drmModeResources, it means it's also a
+		 * KMS-capable device.
+		 */
+		fd = open(device->nodes[DRM_NODE_PRIMARY], O_RDWR);
+		if (fd < 0)
+			continue;
+		ret = get_resources(fd, resources);
+		if (!ret)
+			break;
+		close(fd);
+		fd = -1;
+	}
+	drmFreeDevices(devices, num_devices);
+
+	if (fd < 0)
+		printf("no drm device found!\n");
+	return fd;
+}
+
 int init_drm(struct drm *drm, const char *device, const char *mode_str, unsigned int vrefresh)
 {
 	drmModeRes *resources;
 	drmModeConnector *connector = NULL;
 	drmModeEncoder *encoder = NULL;
-	int i, area;
+	int i, ret, area;
 
-	drm->fd = open(device, O_RDWR);
+	if (device) {
+		drm->fd = open(device, O_RDWR);
+		ret = get_resources(drm->fd, &resources);
+		if (ret < 0 && errno == EOPNOTSUPP)
+			printf("%s does not look like a modeset device\n", device);
+	} else {
+		drm->fd = find_drm_device(&resources);
+	}
 
 	if (drm->fd < 0) {
 		printf("could not open drm device\n");
 		return -1;
 	}
 
-	resources = drmModeGetResources(drm->fd);
 	if (!resources) {
 		printf("drmModeGetResources failed: %s\n", strerror(errno));
 		return -1;

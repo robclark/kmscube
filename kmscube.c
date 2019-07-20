@@ -76,7 +76,7 @@ static void usage(const char *name)
 
 int main(int argc, char *argv[])
 {
-	const char *device = "/dev/dri/card0";
+	const char *device = NULL;
 	const char *video = NULL;
 	char mode_str[DRM_DISPLAY_MODE_LEN] = "";
 	char *p;
