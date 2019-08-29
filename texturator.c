@@ -955,7 +955,7 @@ int main(int argc, char *argv[])
 	}
 
 	gbm = init_gbm(drm->fd, drm->mode->hdisplay, drm->mode->vdisplay,
-			DRM_FORMAT_MOD_LINEAR);
+			DRM_FORMAT_XRGB8888, DRM_FORMAT_MOD_LINEAR);
 	if (!gbm) {
 		printf("failed to initialize GBM\n");
 		return -1;

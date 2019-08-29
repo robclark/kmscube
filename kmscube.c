@@ -46,6 +46,7 @@ static const char *shortopts = "AD:M:m:V:v:";
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'A'},
 	{"device", required_argument, 0, 'D'},
+	{"format", required_argument, 0, 'f'},
 	{"mode",   required_argument, 0, 'M'},
 	{"modifier", required_argument, 0, 'm'},
 	{"samples",  required_argument, 0, 's'},
@@ -66,6 +67,7 @@ static void usage(const char *name)
 			"        rgba      -  rgba textured cube\n"
 			"        nv12-2img -  yuv textured (color conversion in shader)\n"
 			"        nv12-1img -  yuv textured (single nv12 texture)\n"
+			"    -f, --format=FOURCC      framebuffer format\n"
 			"    -m, --modifier=MODIFIER  hardcode the selected modifier\n"
 			"    -s, --samples=N          use MSAA\n"
 			"    -V, --video=FILE         video textured cube\n"
@@ -81,6 +83,7 @@ int main(int argc, char *argv[])
 	char mode_str[DRM_DISPLAY_MODE_LEN] = "";
 	char *p;
 	enum mode mode = SMOOTH;
+	uint32_t format = DRM_FORMAT_XRGB8888;
 	uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
 	int samples = 0;
 	int atomic = 0;
@@ -101,6 +104,21 @@ int main(int argc, char *argv[])
 		case 'D':
 			device = optarg;
 			break;
+		case 'f': {
+			char fourcc[4] = "    ";
+			int length = strlen(optarg);
+			if (length > 0)
+				fourcc[0] = optarg[0];
+			if (length > 1)
+				fourcc[1] = optarg[1];
+			if (length > 2)
+				fourcc[2] = optarg[2];
+			if (length > 3)
+				fourcc[3] = optarg[3];
+			format = fourcc_code(fourcc[0], fourcc[1],
+					     fourcc[2], fourcc[3]);
+			break;
+		}
 		case 'M':
 			if (strcmp(optarg, "smooth") == 0) {
 				mode = SMOOTH;
@@ -155,7 +173,7 @@ int main(int argc, char *argv[])
 	}
 
 	gbm = init_gbm(drm->fd, drm->mode->hdisplay, drm->mode->vdisplay,
-			modifier);
+			format, modifier);
 	if (!gbm) {
 		printf("failed to initialize GBM\n");
 		return -1;

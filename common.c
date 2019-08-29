@@ -40,10 +40,10 @@ gbm_surface_create_with_modifiers(struct gbm_device *gbm,
                                   const uint64_t *modifiers,
                                   const unsigned int count);
 
-const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier)
+const struct gbm * init_gbm(int drm_fd, int w, int h, uint32_t format, uint64_t modifier)
 {
 	gbm.dev = gbm_create_device(drm_fd);
-	gbm.format = GBM_FORMAT_XRGB8888;
+	gbm.format = format;
 	gbm.surface = NULL;
 
 	if (gbm_surface_create_with_modifiers) {

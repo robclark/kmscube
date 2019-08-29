@@ -99,7 +99,7 @@ struct gbm {
 	int width, height;
 };
 
-const struct gbm * init_gbm(int drm_fd, int w, int h, uint64_t modifier);
+const struct gbm * init_gbm(int drm_fd, int w, int h, uint32_t format, uint64_t modifier);
 
 
 struct egl {
