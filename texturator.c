@@ -649,7 +649,7 @@ static bool check_quads(void)
 			int rx = x * zoom;
 			int ry = y * zoom;
 
-			if ((rx >= gbm->width) || (ry >= gbm->height))
+			if ((rx + w * zoom >= gbm->width) || (ry + h * zoom >= gbm->height))
 				continue;
 
 			err |= probe_pix(rx, ry, w*zoom, h*zoom, s, m);
