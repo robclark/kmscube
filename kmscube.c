@@ -41,7 +41,7 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:M:m:V:v:";
+static const char *shortopts = "AD:f:M:m:s:V:v:";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'A'},
@@ -57,17 +57,17 @@ static const struct option longopts[] = {
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-ADMmVv]\n"
+	printf("Usage: %s [-ADfMmsVv]\n"
 			"\n"
 			"options:\n"
 			"    -A, --atomic             use atomic modesetting and fencing\n"
 			"    -D, --device=DEVICE      use the given device\n"
+			"    -f, --format=FOURCC      framebuffer format\n"
 			"    -M, --mode=MODE          specify mode, one of:\n"
 			"        smooth    -  smooth shaded cube (default)\n"
 			"        rgba      -  rgba textured cube\n"
 			"        nv12-2img -  yuv textured (color conversion in shader)\n"
 			"        nv12-1img -  yuv textured (single nv12 texture)\n"
-			"    -f, --format=FOURCC      framebuffer format\n"
 			"    -m, --modifier=MODIFIER  hardcode the selected modifier\n"
 			"    -s, --samples=N          use MSAA\n"
 			"    -V, --video=FILE         video textured cube\n"
