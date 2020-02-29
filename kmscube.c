@@ -41,7 +41,7 @@ static const struct egl *egl;
 static const struct gbm *gbm;
 static const struct drm *drm;
 
-static const char *shortopts = "AD:f:M:m:s:V:v:";
+static const char *shortopts = "AD:f:M:m:S:s:V:v:";
 
 static const struct option longopts[] = {
 	{"atomic", no_argument,       0, 'A'},
@@ -57,7 +57,7 @@ static const struct option longopts[] = {
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-ADfMmsVv]\n"
+	printf("Usage: %s [-ADfMmSsVv]\n"
 			"\n"
 			"options:\n"
 			"    -A, --atomic             use atomic modesetting and fencing\n"
@@ -69,6 +69,7 @@ static void usage(const char *name)
 			"        nv12-2img -  yuv textured (color conversion in shader)\n"
 			"        nv12-1img -  yuv textured (single nv12 texture)\n"
 			"    -m, --modifier=MODIFIER  hardcode the selected modifier\n"
+			"    -S, --shadertoy=FILE     use specified shadertoy shader\n"
 			"    -s, --samples=N          use MSAA\n"
 			"    -V, --video=FILE         video textured cube\n"
 			"    -v, --vmode=VMODE        specify the video mode in the format\n"
@@ -80,6 +81,7 @@ int main(int argc, char *argv[])
 {
 	const char *device = NULL;
 	const char *video = NULL;
+	const char *shadertoy = NULL;
 	char mode_str[DRM_DISPLAY_MODE_LEN] = "";
 	char *p;
 	enum mode mode = SMOOTH;
@@ -137,6 +139,10 @@ int main(int argc, char *argv[])
 		case 'm':
 			modifier = strtoull(optarg, NULL, 0);
 			break;
+		case 'S':
+			mode = SHADERTOY;
+			shadertoy = optarg;
+			break;
 		case 's':
 			samples = strtoul(optarg, NULL, 0);
 			break;
@@ -183,6 +189,8 @@ int main(int argc, char *argv[])
 		egl = init_cube_smooth(gbm, samples);
 	else if (mode == VIDEO)
 		egl = init_cube_video(gbm, video, samples);
+	else if (mode == SHADERTOY)
+		egl = init_cube_shadertoy(gbm, shadertoy, samples);
 	else
 		egl = init_cube_tex(gbm, mode, samples);
 
