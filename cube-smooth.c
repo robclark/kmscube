@@ -28,7 +28,7 @@
 #include "esUtil.h"
 
 
-struct {
+static struct {
 	struct egl egl;
 
 	GLfloat aspect;
