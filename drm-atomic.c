@@ -23,6 +23,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -255,6 +256,17 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 			} while (status != EGL_CONDITION_SATISFIED_KHR);
 
 			egl->eglDestroySyncKHR(egl->display, kms_fence);
+		}
+
+		/* Check for user input: */
+		struct pollfd fdset[] = { {
+			.fd = STDIN_FILENO,
+			.events = POLLIN,
+		} };
+		ret = poll(fdset, ARRAY_SIZE(fdset), 0);
+		if (ret > 0) {
+			printf("user interrupted!\n");
+			return 0;
 		}
 
 		/*
