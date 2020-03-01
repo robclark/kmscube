@@ -180,6 +180,7 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 	struct drm_fb *fb;
 	uint32_t i = 0;
 	uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK;
+	int64_t start_time, report_time, cur_time;
 	int ret;
 
 	if (egl_check(egl, eglDupNativeFenceFDANDROID) ||
@@ -191,6 +192,8 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 
 	/* Allow a modeset change for the first commit only. */
 	flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
+
+	start_time = report_time = get_time_ns();
 
 	while (1) {
 		struct gbm_bo *next_bo;
@@ -210,6 +213,13 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 			 * the buffer that is still on screen.
 			 */
 			egl->eglWaitSyncKHR(egl->display, kms_fence, 0);
+		}
+
+		/* Start fps measuring on second frame, to remove the time spent
+		 * compiling shader, etc, from the fps:
+		 */
+		if (i == 1) {
+			start_time = report_time = get_time_ns();
 		}
 
 		egl->draw(i++);
@@ -256,6 +266,16 @@ static int atomic_run(const struct gbm *gbm, const struct egl *egl)
 			} while (status != EGL_CONDITION_SATISFIED_KHR);
 
 			egl->eglDestroySyncKHR(egl->display, kms_fence);
+		}
+
+		cur_time = get_time_ns();
+		if (cur_time > (report_time + 2 * NSEC_PER_SEC)) {
+			double elapsed_time = cur_time - start_time;
+			double secs = elapsed_time / (double)NSEC_PER_SEC;
+			unsigned frames = i - 1;  /* first frame ignored */
+			printf("Rendered %u frames in %f sec (%f fps)\n",
+				frames, secs, (double)frames/secs);
+			report_time = cur_time;
 		}
 
 		/* Check for user input: */

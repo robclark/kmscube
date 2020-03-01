@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "common.h"
 
@@ -356,4 +357,11 @@ int link_program(unsigned program)
 	}
 
 	return 0;
+}
+
+int64_t get_time_ns(void)
+{
+	struct timespec tv;
+	clock_gettime(CLOCK_MONOTONIC, &tv);
+	return tv.tv_nsec + tv.tv_sec * NSEC_PER_SEC;
 }

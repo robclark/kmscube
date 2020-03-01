@@ -51,6 +51,7 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 	struct gbm_bo *bo;
 	struct drm_fb *fb;
 	uint32_t i = 0;
+	int64_t start_time, report_time, cur_time;
 	int ret;
 
 	eglSwapBuffers(egl->display, egl->surface);
@@ -69,9 +70,18 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 		return ret;
 	}
 
+	start_time = report_time = get_time_ns();
+
 	while (1) {
 		struct gbm_bo *next_bo;
 		int waiting_for_flip = 1;
+
+		/* Start fps measuring on second frame, to remove the time spent
+		 * compiling shader, etc, from the fps:
+		 */
+		if (i == 1) {
+			start_time = report_time = get_time_ns();
+		}
 
 		egl->draw(i++);
 
@@ -112,6 +122,16 @@ static int legacy_run(const struct gbm *gbm, const struct egl *egl)
 				return 0;
 			}
 			drmHandleEvent(drm.fd, &evctx);
+		}
+
+		cur_time = get_time_ns();
+		if (cur_time > (report_time + 2 * NSEC_PER_SEC)) {
+			double elapsed_time = cur_time - start_time;
+			double secs = elapsed_time / (double)NSEC_PER_SEC;
+			unsigned frames = i - 1;  /* first frame ignored */
+			printf("Rendered %u frames in %f sec (%f fps)\n",
+				frames, secs, (double)frames/secs);
+			report_time = cur_time;
 		}
 
 		/* release last buffer to render on again: */

@@ -174,4 +174,10 @@ init_cube_video(const struct gbm *gbm, const char *video, int samples)
 }
 #endif
 
+#define NSEC_PER_SEC (INT64_C(1000) * USEC_PER_SEC)
+#define USEC_PER_SEC (INT64_C(1000) * MSEC_PER_SEC)
+#define MSEC_PER_SEC INT64_C(1000)
+
+int64_t get_time_ns(void);
+
 #endif /* _COMMON_H */
