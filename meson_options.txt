@@ -1,5 +1,0 @@
-option(
-  'gstreamer',
-  type : 'feature',
-  description : 'Enable support for gstreamer and cube-video'
-)
